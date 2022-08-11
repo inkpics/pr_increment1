@@ -10,9 +10,21 @@ import (
 	"strings"
 )
 
+// хост
+const host string = ""
+
+// порт
 const port string = "8080"
 
 var pairs = make(map[string]string)
+
+func main() {
+	http.HandleFunc("/", mainHandler)
+
+	fmt.Println("host server ", host, ":", port)
+
+	log.Fatal(http.ListenAndServe(host+":"+port, nil))
+}
 
 func mainHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -22,14 +34,14 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 
 		url, ok := getURL(id)
 		if !ok {
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.Write([]byte("Error! wrong URL"))
+			w.Write([]byte("error! wrong URL"))
 			return
 		}
 
 		w.Header().Set("Location", url)
-		w.WriteHeader(307)
+		w.WriteHeader(http.StatusTemporaryRedirect)
 
 	case http.MethodPost:
 		body, _ := ioutil.ReadAll(r.Body)
@@ -38,27 +50,27 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
 		if len(id) > 2048 {
-			w.WriteHeader(400)
-			w.Write([]byte("Error! URL length more then 2048 cymbols"))
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("error! URL length more then 2048 cymbols"))
 			return
 		}
 
 		url, ok := getURL(id)
 		var err error
 		if !ok {
-			url, err = shorten(id)
+			url, err = shortener(id)
 			if err != nil {
-				w.WriteHeader(400)
+				w.WriteHeader(http.StatusBadRequest)
 				w.Write([]byte("Create short URL error"))
 				return
 			}
 		}
 
-		w.WriteHeader(201)
+		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte(url))
 
 	default:
-		http.Error(w, "Error! Wrong request method", http.StatusMethodNotAllowed)
+		http.Error(w, "error wrong request method", http.StatusMethodNotAllowed)
 
 	}
 }
@@ -75,25 +87,19 @@ func getURL(id string) (string, bool) {
 	return url, true
 }
 
-func shorten(s string) (string, error) {
+func shortener(s string) (string, error) {
 	hasher := crypto.MD5.New()
 	if _, err := hasher.Write([]byte(s)); err != nil {
 		return "", fmt.Errorf("URL encoding error: %v", err)
 	}
 	hash := string(hasher.Sum([]byte{}))
-	hash = hash[:7]
+	hash = hash[len(hash)-5:]
 	id := base64.StdEncoding.EncodeToString([]byte(hash))
+	id = strings.ToLower(id)
 	id = strings.ReplaceAll(id, "=", "")
 	id = strings.ReplaceAll(id, "/", "_")
 
 	pairs[id] = s
 
 	return id, nil
-}
-func main() {
-	http.HandleFunc("/", mainHandler)
-
-	fmt.Println(" :", port)
-
-	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
