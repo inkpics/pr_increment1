@@ -40,8 +40,9 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Location", url)
-		w.WriteHeader(http.StatusTemporaryRedirect)
+		w.WriteHeader(307)
 
 	case http.MethodPost:
 		body, _ := ioutil.ReadAll(r.Body)
@@ -61,7 +62,7 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 			url, err = shortener(id)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte("Create short URL error"))
+				w.Write([]byte("create short URL error"))
 				return
 			}
 		}
