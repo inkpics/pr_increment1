@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/labstack/echo/v4"
 )
 
 var pairs = make(map[string]string)
@@ -18,53 +19,24 @@ func ShortenerStart(host, port string) {
 	pairsStr, _ := ioutil.ReadFile("db")
 	json.Unmarshal(pairsStr, &pairs)
 
-	http.HandleFunc("/", mainHandler)
+	e := echo.New()
+	e.POST("/", newLink)
+	e.GET("/:id", getLink)
 
-	fmt.Println("The service works on", host, ":", port)
-
-	log.Fatal(http.ListenAndServe(host+":"+port, nil))
+	e.Logger.Fatal(e.Start(host + ":" + port))
 }
 
-func getHandler(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	if path == "" {
-		path = "/"
-	}
-
-	id := path[1:]
-
-	url, ok := getURL(id)
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write([]byte("error, there is no such link"))
-		return
-	}
-
-	w.Header().Set("Location", url)
-	w.WriteHeader(http.StatusTemporaryRedirect)
-}
-
-func postHandler(w http.ResponseWriter, r *http.Request) {
-	body, _ := ioutil.ReadAll(r.Body)
+func newLink(c echo.Context) error {
+	body, _ := ioutil.ReadAll(c.Request().Body)
 	link := string(body)
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-
 	if len(link) > 2048 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error, the link cannot be longer than 2048 characters"))
-		return
-
+		return c.String(http.StatusBadRequest, "error, the link cannot be longer than 2048 characters")
 	} else {
 		_, err := url.ParseRequestURI(link)
-
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("error, the link is invalid"))
-			return
+			return c.String(http.StatusBadRequest, "error, the link is invalid")
 		}
-		// defer resp.Body.Close()
 	}
 
 	url, ok := getURL(link)
@@ -72,29 +44,22 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		url, err = shortener(link)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("error, failed to create a shortened URL"))
-			return
+			return c.String(http.StatusBadRequest, "error, failed to create a shortened URL")
 		}
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(url))
+	return c.String(http.StatusCreated, url)
 }
 
-func mainHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
+func getLink(c echo.Context) error {
+	id := c.Param("id")
 
-	case http.MethodGet:
-		getHandler(w, r)
-
-	case http.MethodPost:
-		postHandler(w, r)
-
-	default:
-		http.Error(w, "error, you can only use the get and post methods", http.StatusMethodNotAllowed)
-
+	url, ok := getURL(id)
+	if !ok {
+		return c.String(http.StatusNotFound, "error, there is no such link")
 	}
+
+	return c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
 func getURL(id string) (string, bool) {
@@ -122,7 +87,6 @@ func shortener(s string) (string, error) {
 	id = strings.ReplaceAll(id, "=", "")
 
 	pairs[id] = s
-	fmt.Println(pairs)
 
 	jsonStr, _ := json.Marshal(pairs)
 	ioutil.WriteFile("db", []byte(jsonStr), 0666)
