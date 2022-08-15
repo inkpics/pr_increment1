@@ -1,16 +1,17 @@
 package app
 
 import (
-	"bytes"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/labstack/echo/v4"
 )
 
-func TestGetURL(t *testing.T) {
-	tests := []struct {
+var (
+	tests = []struct {
 		long  string
 		short string
 	}{
@@ -21,7 +22,9 @@ func TestGetURL(t *testing.T) {
 		{long: "", short: "moz4qn4"},
 		{long: "//test_link", short: "pf7smo8"},
 	}
+)
 
+func TestGetURL(t *testing.T) {
 	for _, testCase := range tests {
 		short, err := shortener(testCase.long)
 		if err != nil {
@@ -40,18 +43,6 @@ func TestGetURL(t *testing.T) {
 }
 
 func TestShortener(t *testing.T) {
-	tests := []struct {
-		long  string
-		short string
-	}{
-		{long: "http://yandex.ru", short: "obrnfe4"},
-		{long: "http://yandex.ru/", short: "xtklsi"},
-		{long: "http://praktikum.yandex.ru", short: "5te+dbq"},
-		{long: "http://maps.yandex.ru", short: "lbohctw"},
-		{long: "", short: "moz4qn4"},
-		{long: "//test_link", short: "pf7smo8"},
-	}
-
 	for _, testCase := range tests {
 		short, err := shortener(testCase.long)
 		if err != nil {
@@ -64,79 +55,16 @@ func TestShortener(t *testing.T) {
 	}
 }
 
-func TestMainHandler(t *testing.T) {
-	tests := []struct {
-		long  string
-		short string
-	}{
-		{long: "http://yandex.ru", short: "obrnfe4"},
-		{long: "http://yandex.ru/", short: "xtklsi"},
-		{long: "http://praktikum.yandex.ru", short: "5te+dbq"},
-		{long: "http://maps.yandex.ru", short: "lbohctw"},
-		{long: "", short: "moz4qn4"},
-		{long: "//test_link", short: "pf7smo8"},
-	}
-
+func TestNewLink(t *testing.T) {
 	{
-		request, err := http.NewRequest("PUT", "localhost:8080", bytes.NewReader([]byte("http://yandex.ru")))
-		if err != nil {
-			t.Fatalf("could not create request: %v", err)
-		}
+		e := echo.New()
+		request := httptest.NewRequest(http.MethodPost, "localhost:8080", strings.NewReader(strings.Repeat("A", 2049)))
 
-		record := httptest.NewRecorder()
-		mainHandler(record, request)
+		recorder := httptest.NewRecorder()
+		c := e.NewContext(request, recorder)
+		newLink(c)
 
-		result := record.Result()
-		defer result.Body.Close()
-
-		if result.StatusCode != http.StatusMethodNotAllowed {
-			t.Errorf("expected status %v; got %v", http.StatusMethodNotAllowed, result.StatusCode)
-		}
-	}
-
-	{
-		request, err := http.NewRequest("GET", "localhost:8080", nil)
-		if err != nil {
-			t.Fatalf("could not create request: %v", err)
-		}
-
-		record := httptest.NewRecorder()
-		mainHandler(record, request)
-
-		result := record.Result()
-		defer result.Body.Close()
-
-		if result.StatusCode != http.StatusNotFound {
-			t.Errorf("expected status %v; got %v", http.StatusNotFound, result.StatusCode)
-		}
-	}
-
-	{
-		request, err := http.NewRequest("POST", "localhost:8080", bytes.NewReader([]byte(strings.Repeat("A", 2049))))
-		if err != nil {
-			t.Fatalf("could not create request: %v", err)
-		}
-
-		record := httptest.NewRecorder()
-		mainHandler(record, request)
-
-		result := record.Result()
-		defer result.Body.Close()
-
-		if result.StatusCode != http.StatusBadRequest {
-			t.Errorf("expected status %v; got %v", http.StatusBadRequest, result.StatusCode)
-		}
-	}
-
-	{
-		request, err := http.NewRequest("POST", "localhost:8080", bytes.NewReader([]byte("123456")))
-		if err != nil {
-			t.Fatalf("could not create request: %v", err)
-		}
-		record := httptest.NewRecorder()
-		mainHandler(record, request)
-
-		result := record.Result()
+		result := recorder.Result()
 		defer result.Body.Close()
 
 		if result.StatusCode != http.StatusBadRequest {
@@ -149,15 +77,14 @@ func TestMainHandler(t *testing.T) {
 			continue
 		}
 
-		request, err := http.NewRequest("POST", "localhost:8080", bytes.NewReader([]byte(testCase.long)))
-		if err != nil {
-			t.Fatalf("could not create request: %v", err)
-		}
+		e := echo.New()
+		request := httptest.NewRequest(http.MethodPost, "localhost:8080", strings.NewReader(testCase.long))
 
-		record := httptest.NewRecorder()
-		mainHandler(record, request)
+		recorder := httptest.NewRecorder()
+		c := e.NewContext(request, recorder)
+		newLink(c)
 
-		result := record.Result()
+		result := recorder.Result()
 		defer result.Body.Close()
 
 		if result.StatusCode != http.StatusCreated {
@@ -172,6 +99,24 @@ func TestMainHandler(t *testing.T) {
 		short := string(body)
 		if short != "http://localhost:8080/"+testCase.short {
 			t.Fatalf("expected answer to be %v; got %v", "http://localhost:8080/"+testCase.short, short)
+		}
+	}
+}
+
+func TestGetLink(t *testing.T) {
+	{
+		e := echo.New()
+		request := httptest.NewRequest(http.MethodGet, "localhost:8080", nil)
+
+		recorder := httptest.NewRecorder()
+		c := e.NewContext(request, recorder)
+		getLink(c)
+
+		result := recorder.Result()
+		defer result.Body.Close()
+
+		if result.StatusCode != http.StatusNotFound {
+			t.Errorf("expected status %v; got %v", http.StatusNotFound, result.StatusCode)
 		}
 	}
 
