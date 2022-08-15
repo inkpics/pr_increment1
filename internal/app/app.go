@@ -6,36 +6,42 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/go-chi/chi/v5"
 )
 
-var pairs = make(map[string]string)
+var m = make(map[string]string)
 
-func ShortenerStart(host, port string) {
-	pairsStr, _ := ioutil.ReadFile("db")
-	json.Unmarshal(pairsStr, &pairs)
+func ShortenerInit() {
+	mStr, _ := ioutil.ReadFile("m.txt")
+	json.Unmarshal(mStr, &m)
 
-	e := echo.New()
-	e.POST("/", newLink)
-	e.GET("/:id", getLink)
-
-	e.Logger.Fatal(e.Start(host + ":" + port))
+	r := chi.NewRouter()
+	r.Post("/", createURL)
+	r.Get("/{id}", receiveURL)
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
-func newLink(c echo.Context) error {
-	body, _ := ioutil.ReadAll(c.Request().Body)
+func createURL(w http.ResponseWriter, r *http.Request) {
+	body, _ := ioutil.ReadAll(r.Body)
 	link := string(body)
 
 	if len(link) > 2048 {
-		return c.String(http.StatusBadRequest, "error, the link cannot be longer than 2048 characters")
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("error: the link cannot be longer than 2048 characters"))
+		return
 	} else {
 		_, err := url.ParseRequestURI(link)
 		if err != nil {
-			return c.String(http.StatusBadRequest, "error, the link is invalid")
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("error: the link is invalid"))
+			return
 		}
 	}
 
@@ -44,29 +50,40 @@ func newLink(c echo.Context) error {
 	if !ok {
 		url, err = shortener(link)
 		if err != nil {
-			return c.String(http.StatusBadRequest, "error, failed to create a shortened URL")
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("error: failed to create a shortened URL"))
+			return
 		}
 	}
 
-	return c.String(http.StatusCreated, url)
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(url))
+	return
 }
 
-func getLink(c echo.Context) error {
-	id := c.Param("id")
+func receiveURL(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
 
 	url, ok := getURL(id)
 	if !ok {
-		return c.String(http.StatusNotFound, "error, there is no such link")
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("error: there is no such link"))
+		return
 	}
 
-	return c.Redirect(http.StatusTemporaryRedirect, url)
+	w.Header().Set("Location", url)
+	w.WriteHeader(http.StatusTemporaryRedirect)
+	return
 }
 
 func getURL(id string) (string, bool) {
 	if len(id) <= 0 {
 		return "", false
 	}
-	url, ok := pairs[id]
+	url, ok := m[id]
 	if !ok {
 		return "", false
 	}
@@ -86,10 +103,10 @@ func shortener(s string) (string, error) {
 	id = strings.ReplaceAll(id, "/", "")
 	id = strings.ReplaceAll(id, "=", "")
 
-	pairs[id] = s
+	m[id] = s
 
-	jsonStr, _ := json.Marshal(pairs)
-	ioutil.WriteFile("db", []byte(jsonStr), 0666)
+	jsonStr, _ := json.Marshal(m)
+	ioutil.WriteFile("m.txt", []byte(jsonStr), 0666)
 
 	return "http://localhost:8080/" + id, nil
 }

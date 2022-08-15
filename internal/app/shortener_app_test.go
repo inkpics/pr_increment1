@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/labstack/echo/v4"
 )
 
 var (
@@ -16,11 +14,8 @@ var (
 		short string
 	}{
 		{long: "http://yandex.ru", short: "obrnfe4"},
-		{long: "http://yandex.ru/", short: "xtklsi"},
 		{long: "http://praktikum.yandex.ru", short: "5te+dbq"},
-		{long: "http://maps.yandex.ru", short: "lbohctw"},
-		{long: "", short: "moz4qn4"},
-		{long: "//test_link", short: "pf7smo8"},
+		{long: "http://direct.yandex.ru", short: "jvbrdoy"},
 	}
 )
 
@@ -55,14 +50,12 @@ func TestShortener(t *testing.T) {
 	}
 }
 
-func TestNewLink(t *testing.T) {
+func TestCreateURL(t *testing.T) {
 	{
-		e := echo.New()
-		request := httptest.NewRequest(http.MethodPost, "localhost:8080", strings.NewReader(strings.Repeat("A", 2049)))
+		request, _ := http.NewRequest(http.MethodPost, "localhost:8080", strings.NewReader(strings.Repeat("A", 2049)))
 
 		recorder := httptest.NewRecorder()
-		c := e.NewContext(request, recorder)
-		newLink(c)
+		createURL(recorder, request)
 
 		result := recorder.Result()
 		defer result.Body.Close()
@@ -77,12 +70,10 @@ func TestNewLink(t *testing.T) {
 			continue
 		}
 
-		e := echo.New()
-		request := httptest.NewRequest(http.MethodPost, "localhost:8080", strings.NewReader(testCase.long))
+		request, _ := http.NewRequest(http.MethodPost, "localhost:8080", strings.NewReader(testCase.long))
 
 		recorder := httptest.NewRecorder()
-		c := e.NewContext(request, recorder)
-		newLink(c)
+		createURL(recorder, request)
 
 		result := recorder.Result()
 		defer result.Body.Close()
@@ -103,21 +94,16 @@ func TestNewLink(t *testing.T) {
 	}
 }
 
-func TestGetLink(t *testing.T) {
-	{
-		e := echo.New()
-		request := httptest.NewRequest(http.MethodGet, "localhost:8080", nil)
+func TestReceiveURL(t *testing.T) {
+	request, _ := http.NewRequest(http.MethodGet, "localhost:8080", nil)
 
-		recorder := httptest.NewRecorder()
-		c := e.NewContext(request, recorder)
-		getLink(c)
+	recorder := httptest.NewRecorder()
+	receiveURL(recorder, request)
 
-		result := recorder.Result()
-		defer result.Body.Close()
+	result := recorder.Result()
+	defer result.Body.Close()
 
-		if result.StatusCode != http.StatusNotFound {
-			t.Errorf("expected status %v; got %v", http.StatusNotFound, result.StatusCode)
-		}
+	if result.StatusCode != http.StatusNotFound {
+		t.Errorf("expected status %v; got %v", http.StatusNotFound, result.StatusCode)
 	}
-
 }
