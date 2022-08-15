@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo"
 )
 
 var pairs = make(map[string]string)
