@@ -58,7 +58,7 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url, ok := IdReadURL(link)
+	url, ok := IDReadURL(link)
 	if !ok {
 		url, err = shortener(link)
 		if err != nil {
@@ -77,7 +77,7 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 func receiveURL(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	url, ok := IdReadURL(id)
+	url, ok := IDReadURL(id)
 	if !ok {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
@@ -89,7 +89,7 @@ func receiveURL(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusTemporaryRedirect)
 }
 
-func IdReadURL(id string) (string, bool) {
+func IDReadURL(id string) (string, bool) {
 	if len(id) <= 0 {
 		return "", false
 	}

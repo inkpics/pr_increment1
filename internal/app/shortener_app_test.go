@@ -30,7 +30,7 @@ func TestGetURL(t *testing.T) {
 			t.Fatalf("expected short link %v; got %v", "http://localhost:8080/"+testCase.short, short)
 		}
 
-		long, _ := IdReadURL(testCase.short)
+		long, _ := IDReadURL(testCase.short)
 		if long != testCase.long {
 			t.Fatalf("expected long link %v; got %v", testCase.long, long)
 		}
