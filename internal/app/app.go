@@ -10,16 +10,30 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 )
 
-var m = make(map[string]string)
+type SafeMap struct {
+	mp  map[string]string
+	mux sync.Mutex
+}
+
+var m = SafeMap{
+	mp:  make(map[string]string),
+	mux: sync.Mutex{},
+}
 
 func ShortenerInit() {
-	mStr, _ := ioutil.ReadFile("m.txt")
-	json.Unmarshal(mStr, &m)
-
+	mStr, ok := ioutil.ReadFile("m.txt")
+	if ok != nil {
+		fmt.Println("error read saved data from file")
+	}
+	if ok == nil {
+		json.Unmarshal(mStr, &m.mp)
+		fmt.Println("data readed from saved file")
+	}
 	r := chi.NewRouter()
 	r.Post("/", createURL)
 	r.Get("/{id}", receiveURL)
@@ -29,24 +43,22 @@ func ShortenerInit() {
 func createURL(w http.ResponseWriter, r *http.Request) {
 	body, _ := ioutil.ReadAll(r.Body)
 	link := string(body)
-
+	var err error
 	if len(link) > 2048 {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("error: the link cannot be longer than 2048 characters"))
 		return
-	} else {
-		_, err := url.ParseRequestURI(link)
-		if err != nil {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("error: the link is invalid"))
-			return
-		}
+	}
+	_, err = url.ParseRequestURI(link)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("error: the link is invalid"))
+		return
 	}
 
-	url, ok := getURL(link)
-	var err error
+	url, ok := IdReadURL(link)
 	if !ok {
 		url, err = shortener(link)
 		if err != nil {
@@ -60,13 +72,12 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(url))
-	return
 }
 
 func receiveURL(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	url, ok := getURL(id)
+	url, ok := IdReadURL(id)
 	if !ok {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
@@ -76,14 +87,15 @@ func receiveURL(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Location", url)
 	w.WriteHeader(http.StatusTemporaryRedirect)
-	return
 }
 
-func getURL(id string) (string, bool) {
+func IdReadURL(id string) (string, bool) {
 	if len(id) <= 0 {
 		return "", false
 	}
-	url, ok := m[id]
+	m.mux.Lock()
+	url, ok := m.mp[id] // доступ к мапе на чтение URL по ключу
+	m.mux.Unlock()
 	if !ok {
 		return "", false
 	}
@@ -94,7 +106,7 @@ func getURL(id string) (string, bool) {
 func shortener(s string) (string, error) {
 	h := crypto.MD5.New()
 	if _, err := h.Write([]byte(s)); err != nil {
-		return "", fmt.Errorf("abbreviation error URL: %v", err)
+		return "", fmt.Errorf("abbreviation  URL error: %v", err)
 	}
 	hash := string(h.Sum([]byte{}))
 	hash = hash[len(hash)-5:]
@@ -102,11 +114,16 @@ func shortener(s string) (string, error) {
 	id = strings.ToLower(id)[:len(id)-1]
 	id = strings.ReplaceAll(id, "/", "")
 	id = strings.ReplaceAll(id, "=", "")
-
-	m[id] = s
-
-	jsonStr, _ := json.Marshal(m)
-	ioutil.WriteFile("m.txt", []byte(jsonStr), 0666)
+	m.mux.Lock()
+	m.mp[id] = s //доступ к мапе на запись ключа
+	m.mux.Unlock()
+	jsonStr, ok := json.Marshal(m.mp)
+	if ok != nil {
+		fmt.Println("json encoding error: ", ok)
+	}
+	if ok == nil {
+		ioutil.WriteFile("m.txt", []byte(jsonStr), 0666) //запись мапы в файл
+	}
 
 	return "http://localhost:8080/" + id, nil
 }
