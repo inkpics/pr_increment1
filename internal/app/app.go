@@ -69,7 +69,6 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(url))
@@ -114,7 +113,6 @@ func createJSONURL(w http.ResponseWriter, r *http.Request) error {
 			return fmt.Errorf("error: failed to create a shortened URL: %w", err)
 		}
 	}
-
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(url))
@@ -128,7 +126,7 @@ func receiveURL(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("error: there is no such link"))
+		w.Write([]byte("error: there is no link"))
 		return
 	}
 
