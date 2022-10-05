@@ -17,8 +17,12 @@ var m = DBMap{
 	mux: sync.Mutex{},
 }
 
-func ReadDB() error {
-	mString, err := ioutil.ReadFile("db.txt")
+func ReadDB(FILE_STORAGE_PATH string) error {
+	if FILE_STORAGE_PATH == "" {
+		return nil
+	}
+
+	mString, err := ioutil.ReadFile(FILE_STORAGE_PATH)
 	if err != nil {
 		fmt.Println("error read saved data from file")
 		return nil
@@ -33,17 +37,15 @@ func ReadDB() error {
 	fmt.Println("data readed from saved file")
 	return nil
 }
-func WriteDB(id string, s string) error {
+func WriteDB(FILE_STORAGE_PATH string, id string, s string) error {
 	m.mux.Lock()
 	m.mp[id] = s //доступ к мапе на запись ключа
 	m.mux.Unlock()
 	jsonStr, err := json.Marshal(m.mp)
-	if err != nil {
-		return fmt.Errorf("json encoding error: %w", err)
-	}
 
-	ioutil.WriteFile("db.txt", []byte(jsonStr), 0666) //запись мапы в файл
+	return fmt.Errorf("json encoding error: %w", err)
 
+	ioutil.WriteFile(FILE_STORAGE_PATH, []byte(jsonStr), 0666) //запись мапы в файл
 	return nil
 }
 func IDReadURL(id string) (string, bool) {

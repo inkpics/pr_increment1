@@ -27,13 +27,20 @@ import (
 // 	mux: sync.Mutex{},
 // }
 
+var (
+	fsPath string
+	base   string
+)
+
 type Res struct {
 	Result string `json:"result"`
 }
 
-func ShortenerInit() {
+func ShortenerInit(SERVER_ADDRESS, BASE_URL, FILE_STORAGE_PATH string) {
+	fsPath = FILE_STORAGE_PATH
+	base = BASE_URL
 
-	err := db.ReadDB()
+	err := db.ReadDB(fsPath)
 	if err != nil {
 		fmt.Println("error read saved data from file")
 		log.Panic(err)
@@ -43,7 +50,7 @@ func ShortenerInit() {
 	r.Post("/", createURL)
 	r.Post("/api/shorten", createJSONURL)
 	r.Get("/{id}", receiveURL)
-	log.Fatal(http.ListenAndServe(":8080", r))
+	log.Fatal(http.ListenAndServe(SERVER_ADDRESS, r))
 }
 
 func createURL(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +145,6 @@ func createJSONURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(jsonStr))
-	// return
 }
 
 func receiveURL(w http.ResponseWriter, r *http.Request) {
@@ -181,7 +187,7 @@ func shortener(s string) (string, error) {
 	id = strings.ToLower(id)[:len(id)-1]
 	id = strings.ReplaceAll(id, "/", "")
 	id = strings.ReplaceAll(id, "=", "")
-	err := db.WriteDB(id, s)
+	err := db.WriteDB(fsPath, id, s)
 	if err != nil {
 		return "", fmt.Errorf("error write data to file: %w", err)
 	}
@@ -196,5 +202,5 @@ func shortener(s string) (string, error) {
 	// 	ioutil.WriteFile("m.txt", []byte(jsonStr), 0666) //запись мапы в файл
 	// }
 
-	return "http://localhost:8080/" + id, nil
+	return "http://" + base + "/" + id, nil
 }
