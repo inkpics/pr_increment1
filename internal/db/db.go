@@ -41,9 +41,9 @@ func WriteDB(id string, s string) error {
 	if err != nil {
 		return fmt.Errorf("json encoding error: %w", err)
 	}
-	if err == nil {
-		ioutil.WriteFile("db.txt", []byte(jsonStr), 0666) //запись мапы в файл
-	}
+
+	ioutil.WriteFile("db.txt", []byte(jsonStr), 0666) //запись мапы в файл
+
 	return nil
 }
 func IDReadURL(id string) (string, bool) {
