@@ -27,6 +27,10 @@ import (
 // 	mux: sync.Mutex{},
 // }
 
+type Res struct {
+	Result string `json:"result"`
+}
+
 func ShortenerInit() {
 
 	err := db.ReadDB()
@@ -37,6 +41,7 @@ func ShortenerInit() {
 
 	r := chi.NewRouter()
 	r.Post("/", createURL)
+	r.Post("/api/shorten", createJSONURL)
 	r.Get("/{id}", receiveURL)
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
@@ -69,38 +74,44 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(url))
 }
-func createJSONURL(w http.ResponseWriter, r *http.Request) error {
+func createJSONURL(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return fmt.Errorf("read body: %w", err)
+		fmt.Println("read body")
+		return
 	}
-	link := string(body)
 	JSONlink := make(map[string]string)
 	err = json.Unmarshal(body, &JSONlink)
 	if err != nil {
-		return fmt.Errorf("json unmarshal: %w", err)
+		fmt.Println("json unmarshal error")
+		return
 	}
 
 	link, ok := JSONlink["url"]
 	if !ok {
-		return fmt.Errorf("error: no such link")
+		fmt.Println("error: no such link")
+		return
 	}
 	if len(link) > 2048 {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("error: the link cannot be longer than 2048 characters"))
-		return fmt.Errorf("error: the link is invalid")
+		fmt.Println("error: the link cannot be longer than 2048 characters")
+		return
 	}
+
 	_, err = url.ParseRequestURI(link)
 	if err != nil {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("error: the link is invalid"))
-		return fmt.Errorf("error: the link is invalid: %w", err)
+		fmt.Println("error: the link is invalid")
+		return
 	}
 
 	url, ok := db.IDReadURL(link)
@@ -110,13 +121,24 @@ func createJSONURL(w http.ResponseWriter, r *http.Request) error {
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("error: failed to create a shortened URL"))
-			return fmt.Errorf("error: failed to create a shortened URL: %w", err)
+			fmt.Println("error: failed to create a shortened URL")
+			return
 		}
 	}
-	w.Header().Set("Content-Type", "text/plain")
+
+	result := &Res{
+		Result: url,
+	}
+
+	jsonStr, err := json.Marshal(result)
+	if err != nil {
+		fmt.Println("json encoding error")
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(url))
-	return nil
+	w.Write([]byte(jsonStr))
+	// return
 }
 
 func receiveURL(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +148,7 @@ func receiveURL(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("error: there is no link"))
+		w.Write([]byte("error: there is no such link"))
 		return
 	}
 
