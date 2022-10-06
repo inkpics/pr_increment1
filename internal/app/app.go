@@ -37,9 +37,9 @@ type Res struct {
 	Result string `json:"result"`
 }
 
-func ShortenerInit(SERVER_ADDRESS, BASE_URL, FILE_STORAGE_PATH string) {
-	fsPath = FILE_STORAGE_PATH
-	base = BASE_URL
+func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
+	fsPath = fileStoragePath
+	base = baseURL
 
 	err := db.ReadDB(fsPath)
 	if err != nil {
@@ -52,7 +52,7 @@ func ShortenerInit(SERVER_ADDRESS, BASE_URL, FILE_STORAGE_PATH string) {
 	r.Post("/", createURL)
 	r.Post("/api/shorten", createJSONURL)
 	r.Get("/{id}", receiveURL)
-	log.Fatal(http.ListenAndServe(SERVER_ADDRESS, r))
+	log.Fatal(http.ListenAndServe(serverAddress, r))
 }
 
 func createURL(w http.ResponseWriter, r *http.Request) {
