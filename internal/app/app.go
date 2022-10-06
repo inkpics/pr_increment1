@@ -13,6 +13,7 @@ import (
 
 	// "sync"
 
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/inkpics/pr_increment1/internal/db"
 )
@@ -47,6 +48,7 @@ func ShortenerInit(SERVER_ADDRESS, BASE_URL, FILE_STORAGE_PATH string) {
 	}
 
 	r := chi.NewRouter()
+	r.Use(middleware.Compress(5))
 	r.Post("/", createURL)
 	r.Post("/api/shorten", createJSONURL)
 	r.Get("/{id}", receiveURL)
@@ -145,6 +147,7 @@ func createJSONURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(jsonStr))
+	return
 }
 
 func receiveURL(w http.ResponseWriter, r *http.Request) {

@@ -42,9 +42,9 @@ func WriteDB(FILE_STORAGE_PATH string, id string, s string) error {
 	m.mp[id] = s //доступ к мапе на запись ключа
 	m.mux.Unlock()
 	jsonStr, err := json.Marshal(m.mp)
-
-	return fmt.Errorf("json encoding error: %w", err)
-
+	if err != nil {
+		return fmt.Errorf("json encoding error: %w", err)
+	}
 	ioutil.WriteFile(FILE_STORAGE_PATH, []byte(jsonStr), 0666) //запись мапы в файл
 	return nil
 }
