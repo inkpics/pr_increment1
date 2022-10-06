@@ -58,6 +58,7 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
 func createURL(w http.ResponseWriter, r *http.Request) {
 	body, _ := ioutil.ReadAll(r.Body)
 	link := string(body)
+	fmt.Println("test:", link)
 	var err error
 	if len(link) > 2048 {
 		w.Header().Set("Content-Type", "text/plain")
