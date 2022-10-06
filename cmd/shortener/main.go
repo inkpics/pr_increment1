@@ -17,5 +17,13 @@ func main() {
 	flag.StringVar(&fileStoragePath, "f", os.Getenv("FILE_STORAGE_PATH"), "FILE_STORAGE_PATH")
 	flag.Parse()
 
+	if serverAddress == "" {
+		serverAddress = "localhost:8080"
+	}
+
+	if baseURL == "" {
+		baseURL = "http://" + serverAddress
+	}
+
 	app.ShortenerInit(serverAddress, baseURL, fileStoragePath)
 }
