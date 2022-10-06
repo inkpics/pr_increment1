@@ -86,7 +86,7 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(url))
+	w.Write([]byte(base + "/" + url))
 }
 func createJSONURL(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
@@ -136,7 +136,7 @@ func createJSONURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := &Res{
-		Result: url,
+		Result: base + "/" + url,
 	}
 
 	jsonStr, err := json.Marshal(result)
@@ -205,5 +205,5 @@ func shortener(s string) (string, error) {
 	// 	ioutil.WriteFile("m.txt", []byte(jsonStr), 0666) //запись мапы в файл
 	// }
 
-	return "http://" + base + "/" + id, nil
+	return id, nil
 }
