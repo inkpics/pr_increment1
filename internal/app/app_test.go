@@ -28,8 +28,8 @@ func TestGetURL(t *testing.T) {
 			t.Errorf("can't shorten link %v", testCase.long)
 		}
 
-		if short != "http://localhost:8080/"+testCase.short {
-			t.Fatalf("expected short link %v; got %v", "http://localhost:8080/"+testCase.short, short)
+		if short != testCase.short {
+			t.Fatalf("expected short link %v; got %v", testCase.short, short)
 		}
 
 		long, _ := db.IDReadURL(testCase.short)
@@ -46,8 +46,8 @@ func TestShortener(t *testing.T) {
 			t.Errorf("can't shorten link %v", testCase.long)
 		}
 
-		if short != "http://localhost:8080/"+testCase.short {
-			t.Fatalf("expected short link %v; got %v", "http://localhost:8080/"+testCase.short, short)
+		if short != testCase.short {
+			t.Fatalf("expected short link %v; got %v", testCase.short, short)
 		}
 	}
 }
@@ -90,8 +90,8 @@ func TestCreateURL(t *testing.T) {
 		}
 
 		short := string(body)
-		if short != "http://localhost:8080/"+testCase.short {
-			t.Fatalf("expected answer to be %v; got %v", "http://localhost:8080/"+testCase.short, short)
+		if short != "/"+testCase.short {
+			t.Fatalf("expected answer to be %v; got %v", "/"+testCase.short, short)
 		}
 	}
 }
