@@ -64,6 +64,7 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("Content-Encoding") == "gzip" || r.Header.Get("Content-Encoding") == "x-gzip" {
+		fmt.Println("gzip")
 		body, err = readAll(r.Body)
 		if err != nil {
 			fmt.Println("read body gzip")
@@ -72,7 +73,7 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	link := string(body)
-
+	fmt.Println("link", link)
 	if len(link) > 2048 {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusBadRequest)
