@@ -60,14 +60,21 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		fmt.Println("read body")
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("error: bad request"))
 		return
 	}
 
-	if r.Header.Get("Content-Encoding") == "gzip" || r.Header.Get("Content-Encoding") == "x-gzip" {
-		fmt.Println("gzip")
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		fmt.Println("gzip", string(body))
 		body, err = readAll(r.Body)
 		if err != nil {
+			fmt.Println(err)
 			fmt.Println("read body gzip")
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("error: bad request"))
 			return
 		}
 	}
@@ -107,15 +114,23 @@ func createJSONURL(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		fmt.Println("read body")
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("error: bad request"))
 		return
 	}
-	if r.Header.Get("Content-Encoding") == "gzip" || r.Header.Get("Content-Encoding") == "x-gzip" {
+
+	if r.Header.Get("Content-Encoding") == "gzip" {
 		body, err = readAll(r.Body)
 		if err != nil {
 			fmt.Println("read body gzip")
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("error: bad request"))
 			return
 		}
 	}
+
 	JSONlink := make(map[string]string)
 	err = json.Unmarshal(body, &JSONlink)
 	if err != nil {
@@ -236,6 +251,6 @@ func readAll(r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	defer reader.Close()
-	buff, err := io.ReadAll(reader)
-	return buff, err
+	body, err := io.ReadAll(reader)
+	return body, err
 }
