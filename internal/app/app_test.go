@@ -1,7 +1,7 @@
 package app
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -84,7 +84,7 @@ func TestCreateURL(t *testing.T) {
 			t.Errorf("expected status %v; got %v", http.StatusCreated, result.StatusCode)
 		}
 
-		body, err := ioutil.ReadAll(result.Body)
+		body, err := io.ReadAll(result.Body)
 		if err != nil {
 			t.Fatalf("could not read response: %v", err)
 		}

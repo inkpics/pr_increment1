@@ -1,11 +1,12 @@
 package app
 
 import (
+	"compress/gzip"
 	"crypto"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -56,10 +57,21 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
 }
 
 func createURL(w http.ResponseWriter, r *http.Request) {
-	body, _ := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		fmt.Println("read body")
+		return
+	}
 	link := string(body)
-	fmt.Println("test:", link)
-	var err error
+
+	if r.Header.Get("Content-Encoding") == "gzip" || r.Header.Get("Content-Encoding") == "x-gzip" {
+		body, err = readAll(r.Body)
+		if err != nil {
+			fmt.Println("read body gzip")
+			return
+		}
+	}
+
 	if len(link) > 2048 {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusBadRequest)
@@ -90,10 +102,17 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(base + "/" + url))
 }
 func createJSONURL(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		fmt.Println("read body")
 		return
+	}
+	if r.Header.Get("Content-Encoding") == "gzip" || r.Header.Get("Content-Encoding") == "x-gzip" {
+		body, err = readAll(r.Body)
+		if err != nil {
+			fmt.Println("read body gzip")
+			return
+		}
 	}
 	JSONlink := make(map[string]string)
 	err = json.Unmarshal(body, &JSONlink)
@@ -203,8 +222,18 @@ func shortener(s string) (string, error) {
 	// 	fmt.Println("json encoding error: ", ok)
 	// }
 	// if ok == nil {
-	// 	ioutil.WriteFile("m.txt", []byte(jsonStr), 0666) //запись мапы в файл
+	// 	io.WriteFile("m.txt", []byte(jsonStr), 0666) //запись мапы в файл
 	// }
 
 	return id, nil
+}
+
+func readAll(r io.Reader) ([]byte, error) {
+	reader, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	buff, err := io.ReadAll(reader)
+	return buff, err
 }
