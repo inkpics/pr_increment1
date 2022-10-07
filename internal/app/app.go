@@ -62,7 +62,6 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("read body")
 		return
 	}
-	link := string(body)
 
 	if r.Header.Get("Content-Encoding") == "gzip" || r.Header.Get("Content-Encoding") == "x-gzip" {
 		body, err = readAll(r.Body)
@@ -71,6 +70,8 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	link := string(body)
 
 	if len(link) > 2048 {
 		w.Header().Set("Content-Type", "text/plain")
