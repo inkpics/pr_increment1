@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"compress/gzip"
 	"crypto"
 	"encoding/base64"
@@ -67,20 +68,27 @@ func createURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("Content-Encoding") == "gzip" {
-		fmt.Println("gzip", string(body))
-		body, err = readAll(r.Body)
-		if err != nil {
-			fmt.Println(err)
-			fmt.Println("read body gzip")
+		var b bytes.Buffer
+		gz := gzip.NewWriter(&b)
+		if _, err := gz.Write(body); err != nil {
+			fmt.Println("gz write")
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("error: bad request"))
 			return
 		}
+		if err := gz.Close(); err != nil {
+			fmt.Println("gz close")
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("error: bad request"))
+			return
+		}
+		body = b.Bytes()
 	}
 
 	link := string(body)
-	fmt.Println("link", link)
+
 	if len(link) > 2048 {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusBadRequest)
@@ -118,17 +126,6 @@ func createJSONURL(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("error: bad request"))
 		return
-	}
-
-	if r.Header.Get("Content-Encoding") == "gzip" {
-		body, err = readAll(r.Body)
-		if err != nil {
-			fmt.Println("read body gzip")
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("error: bad request"))
-			return
-		}
 	}
 
 	JSONlink := make(map[string]string)
@@ -245,12 +242,16 @@ func shortener(s string) (string, error) {
 	return id, nil
 }
 
-func readAll(r io.Reader) ([]byte, error) {
-	reader, err := gzip.NewReader(r)
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-	body, err := io.ReadAll(reader)
-	return body, err
-}
+// func readAll(r io.ReadCloser) ([]byte, error) {
+// 	body, err := io.ReadAll(reader)
+// 	if err != nil {
+// 		return []byte(""), err
+// 	}
+//     reader, err := gzip.NewReader(bytes.Trim(r, "\x00"))
+//     if err != nil {
+//         return nil, err
+//     }
+//     defer reader.Close()
+//     body, err := io.ReadAll(reader)
+//     return body, err
+// }
