@@ -8,9 +8,11 @@ import (
 	"testing"
 
 	"github.com/inkpics/pr_increment1/internal/db"
+	"github.com/labstack/echo"
 )
 
 var (
+	Serv  *handler
 	tests = []struct {
 		long  string
 		short string
@@ -20,6 +22,14 @@ var (
 		{long: "http://direct.yandex.ru", short: "jvbrdoy"},
 	}
 )
+
+func TestInit(t *testing.T) {
+	var err error
+	Serv, err = New("localhost:8080", "http://localhost:8080", "", "")
+	if err != nil {
+		t.Fatal("can't start test")
+	}
+}
 
 func TestGetURL(t *testing.T) {
 	for _, testCase := range tests {
@@ -54,10 +64,12 @@ func TestShortener(t *testing.T) {
 
 func TestCreateURL(t *testing.T) {
 	{
-		request, _ := http.NewRequest(http.MethodPost, "localhost:8080", strings.NewReader(strings.Repeat("A", 2049)))
+		e := echo.New()
+		request, _ := httptest.NewRequest(http.MethodPost, "http://localhost:8080/", strings.NewReader(strings.Repeat("A", 2049)))
 
 		recorder := httptest.NewRecorder()
-		createURL(recorder, request)
+		c := e.NewContext(request, recorder)
+		createURL(c)
 
 		result := recorder.Result()
 		defer result.Body.Close()
@@ -72,10 +84,12 @@ func TestCreateURL(t *testing.T) {
 			continue
 		}
 
-		request, _ := http.NewRequest(http.MethodPost, "localhost:8080", strings.NewReader(testCase.long))
+		e := echo.New()
+		request, _ := httptest.NewRequest(http.MethodPost, "http://localhost:8080/", strings.NewReader(testCase.long))
 
 		recorder := httptest.NewRecorder()
-		createURL(recorder, request)
+		c := e.NewContext(request, recorder)
+		createURL(c)
 
 		result := recorder.Result()
 		defer result.Body.Close()
@@ -97,10 +111,12 @@ func TestCreateURL(t *testing.T) {
 }
 
 func TestReceiveURL(t *testing.T) {
-	request, _ := http.NewRequest(http.MethodGet, "localhost:8080", nil)
+	e := echo.New()
+	request := httptest.NewRequest(http.MethodGet, "http://localhost:8080/", nil)
 
 	recorder := httptest.NewRecorder()
-	receiveURL(recorder, request)
+	c := e.NewContext(request, recorder)
+	receiveURL(c)
 
 	result := recorder.Result()
 	defer result.Body.Close()

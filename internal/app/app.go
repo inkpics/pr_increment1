@@ -1,8 +1,6 @@
 package app
 
 import (
-	"bytes"
-	"compress/gzip"
 	"crypto"
 	"encoding/base64"
 	"encoding/json"
@@ -15,9 +13,9 @@ import (
 
 	// "sync"
 
-	"github.com/go-chi/chi/middleware"
-	"github.com/go-chi/chi/v5"
 	"github.com/inkpics/pr_increment1/internal/db"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 // type SafeMap struct {
@@ -49,123 +47,82 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
 		log.Panic(err)
 	}
 
-	r := chi.NewRouter()
-	r.Use(middleware.Compress(5))
-	r.Post("/", createURL)
-	r.Post("/api/shorten", createJSONURL)
-	r.Get("/{id}", receiveURL)
-	log.Fatal(http.ListenAndServe(serverAddress, r))
+	e := echo.New()
+	e.Use(middleware.Gzip())
+	e.Use(middleware.Decompress())
+	e.POST("/", createURL)
+	e.POST("/api/shorten", createJSONURL)
+	e.GET("/:id", receiveURL)
+	e.Logger.Fatal(e.Start(serverAddress))
 }
 
-func createURL(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+func createURL(c echo.Context) error {
+	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		fmt.Println("read body")
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error: bad request"))
-		return
+		c.String(http.StatusBadRequest, "error: bad request")
+		return fmt.Errorf("bad request: %w", err)
 	}
-
-	if r.Header.Get("Content-Encoding") == "gzip" {
-		var b bytes.Buffer
-		gz := gzip.NewWriter(&b)
-		if _, err := gz.Write(body); err != nil {
-			fmt.Println("gz write")
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("error: bad request"))
-			return
-		}
-		if err := gz.Close(); err != nil {
-			fmt.Println("gz close")
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("error: bad request"))
-			return
-		}
-		body = b.Bytes()
-	}
-
 	link := string(body)
 
 	if len(link) > 2048 {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error: the link cannot be longer than 2048 characters"))
-		return
+		c.String(http.StatusBadRequest, "error: the link cannot be longer than 2048 characters")
+		return fmt.Errorf("the link cannot be longer than 2048 characters: %w", err)
 	}
 	_, err = url.ParseRequestURI(link)
 	if err != nil {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error: the link is invalid"))
-		return
+		c.String(http.StatusBadRequest, "error: the link is invalid")
+		return fmt.Errorf("the link is invalid: %w", err)
 	}
 
 	url, ok := db.IDReadURL(link)
 	if !ok {
 		url, err = shortener(link)
 		if err != nil {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("error: failed to create a shortened URL"))
-			return
+			c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
+			return fmt.Errorf("failed to create a shortened URL: %w", err)
 		}
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(base + "/" + url))
+	c.String(http.StatusCreated, base+"/"+url)
+	return nil
 }
-func createJSONURL(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+func createJSONURL(c echo.Context) error {
+	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
-		fmt.Println("read body")
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error: bad request"))
-		return
+		c.String(http.StatusBadRequest, "error: bad request")
+		return fmt.Errorf("read body: %w", err)
 	}
 
 	JSONlink := make(map[string]string)
 	err = json.Unmarshal(body, &JSONlink)
 	if err != nil {
-		fmt.Println("json unmarshal error")
-		return
+		c.String(http.StatusBadRequest, "error: bad request")
+		return fmt.Errorf("json unmarshal error: %w", err)
 	}
 
 	link, ok := JSONlink["url"]
 	if !ok {
-		fmt.Println("error: no such link")
-		return
+		c.String(http.StatusNotFound, "error: no such link")
+		return fmt.Errorf("no such link: %w", err)
 	}
 	if len(link) > 2048 {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error: the link cannot be longer than 2048 characters"))
-		fmt.Println("error: the link cannot be longer than 2048 characters")
-		return
+		c.String(http.StatusBadRequest, "error: the link cannot be longer than 2048 characters")
+		return fmt.Errorf("the link cannot be longer than 2048 characters: %w", err)
 	}
 
 	_, err = url.ParseRequestURI(link)
 	if err != nil {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("error: the link is invalid"))
-		fmt.Println("error: the link is invalid")
-		return
+		c.String(http.StatusBadRequest, "error: the link is invalid")
+		return fmt.Errorf("the link is invalid: %w", err)
 	}
 
 	url, ok := db.IDReadURL(link)
 	if !ok {
 		url, err = shortener(link)
 		if err != nil {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("error: failed to create a shortened URL"))
-			fmt.Println("error: failed to create a shortened URL")
-			return
+			c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
+			return fmt.Errorf("failed to create a shortened URL: %w", err)
 		}
 	}
 
@@ -173,45 +130,22 @@ func createJSONURL(w http.ResponseWriter, r *http.Request) {
 		Result: base + "/" + url,
 	}
 
-	jsonStr, err := json.Marshal(result)
-	if err != nil {
-		fmt.Println("json encoding error")
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(jsonStr))
-	//return
+	c.JSON(http.StatusCreated, result)
+	return nil
 }
 
-func receiveURL(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+func receiveURL(c echo.Context) error {
+	id := c.Param("id")
 
 	url, ok := db.IDReadURL(id)
 	if !ok {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("error: there is no such link"))
-		return
+		c.String(http.StatusNotFound, "error: there is no such link")
+		return fmt.Errorf("there is no such link")
 	}
 
-	w.Header().Set("Location", url)
-	w.WriteHeader(http.StatusTemporaryRedirect)
+	c.Redirect(http.StatusTemporaryRedirect, url)
+	return nil
 }
-
-// func IDReadURL(id string) (string, bool) {
-// 	if len(id) <= 0 {
-// 		return "", false
-// 	}
-// 	m.mux.Lock()
-// 	url, ok := m.mp[id] // доступ к мапе на чтение URL по ключу
-// 	m.mux.Unlock()
-// 	if !ok {
-// 		return "", false
-// 	}
-
-// 	return url, true
-// }
 
 func shortener(s string) (string, error) {
 	h := crypto.MD5.New()
@@ -228,30 +162,6 @@ func shortener(s string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error write data to file: %w", err)
 	}
-	// m.mux.Lock()
-	// m.mp[id] = s //доступ к мапе на запись ключа
-	// m.mux.Unlock()
-	// jsonStr, ok := json.Marshal(m.mp)
-	// if ok != nil {
-	// 	fmt.Println("json encoding error: ", ok)
-	// }
-	// if ok == nil {
-	// 	io.WriteFile("m.txt", []byte(jsonStr), 0666) //запись мапы в файл
-	// }
 
 	return id, nil
 }
-
-// func readAll(r io.ReadCloser) ([]byte, error) {
-// 	body, err := io.ReadAll(reader)
-// 	if err != nil {
-// 		return []byte(""), err
-// 	}
-//     reader, err := gzip.NewReader(bytes.Trim(r, "\x00"))
-//     if err != nil {
-//         return nil, err
-//     }
-//     defer reader.Close()
-//     body, err := io.ReadAll(reader)
-//     return body, err
-// }
