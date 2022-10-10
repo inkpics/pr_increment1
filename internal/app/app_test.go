@@ -12,7 +12,6 @@ import (
 )
 
 var (
-	Serv  *handler
 	tests = []struct {
 		long  string
 		short string
@@ -22,14 +21,6 @@ var (
 		{long: "http://direct.yandex.ru", short: "jvbrdoy"},
 	}
 )
-
-func TestInit(t *testing.T) {
-	var err error
-	Serv, err = New("localhost:8080", "http://localhost:8080", "", "")
-	if err != nil {
-		t.Fatal("can't start test")
-	}
-}
 
 func TestGetURL(t *testing.T) {
 	for _, testCase := range tests {
