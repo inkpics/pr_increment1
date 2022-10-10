@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/inkpics/pr_increment1/internal/db"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 )
 
 var (
