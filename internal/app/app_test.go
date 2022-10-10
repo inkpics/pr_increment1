@@ -56,7 +56,7 @@ func TestShortener(t *testing.T) {
 func TestCreateURL(t *testing.T) {
 	{
 		e := echo.New()
-		request, _ := httptest.NewRequest(http.MethodPost, "http://localhost:8080/", strings.NewReader(strings.Repeat("A", 2049)))
+		request := httptest.NewRequest(http.MethodPost, "http://localhost:8080/", strings.NewReader(strings.Repeat("A", 2049)))
 
 		recorder := httptest.NewRecorder()
 		c := e.NewContext(request, recorder)
@@ -76,7 +76,7 @@ func TestCreateURL(t *testing.T) {
 		}
 
 		e := echo.New()
-		request, _ := httptest.NewRequest(http.MethodPost, "http://localhost:8080/", strings.NewReader(testCase.long))
+		request := httptest.NewRequest(http.MethodPost, "http://localhost:8080/", strings.NewReader(testCase.long))
 
 		recorder := httptest.NewRecorder()
 		c := e.NewContext(request, recorder)
