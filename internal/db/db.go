@@ -3,6 +3,7 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 )
@@ -17,15 +18,26 @@ var m = DBMap{
 	mux: sync.Mutex{},
 }
 
+const defaultDbPath = "./db.txt"
+
 func ReadDB(fileStoragePath string) error {
 	if fileStoragePath == "" {
-		return nil
+		fileStoragePath = defaultDbPath
 	}
 
 	mString, err := os.ReadFile(fileStoragePath)
 	if err != nil {
-		fmt.Println("error read saved data from file")
-		return nil
+		dbFileNew, err := os.Create(fileStoragePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		dbFileNew.Close()
+
+		mString, err = os.ReadFile(fileStoragePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 	}
 
 	m.mux.Lock()
@@ -34,7 +46,6 @@ func ReadDB(fileStoragePath string) error {
 	if err != nil {
 		return fmt.Errorf("json unmarshal: %w", err)
 	}
-	fmt.Println("data readed from saved file")
 	return nil
 }
 func WriteDB(fileStoragePath string, id string, s string) error {
@@ -45,7 +56,10 @@ func WriteDB(fileStoragePath string, id string, s string) error {
 	if err != nil {
 		return fmt.Errorf("json encoding error: %w", err)
 	}
-	os.WriteFile(fileStoragePath, []byte(jsonStr), 0666) //запись мапы в файл
+	err = os.WriteFile(fileStoragePath, []byte(jsonStr), 0666) //запись мапы в файл
+	if err != nil {
+		return fmt.Errorf("data write to file error: %w", err)
+	}
 	return nil
 }
 func IDReadURL(id string) (string, bool) {

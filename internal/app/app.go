@@ -11,22 +11,12 @@ import (
 	"net/url"
 	"strings"
 
-	// "sync"
-
 	"github.com/inkpics/pr_increment1/internal/db"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
 
-// type SafeMap struct {
-// 	mp  map[string]string
-// 	mux sync.Mutex
-// }
-
-// var m = SafeMap{
-// 	mp:  make(map[string]string),
-// 	mux: sync.Mutex{},
-// }
+const lenInt = 2048
 
 var (
 	fsPath string
@@ -43,8 +33,8 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
 
 	err := db.ReadDB(fsPath)
 	if err != nil {
-		fmt.Println("error read saved data from file")
-		log.Panic(err)
+
+		log.Fatal(err)
 	}
 
 	e := echo.New()
@@ -60,27 +50,29 @@ func createURL(c echo.Context) error {
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		fmt.Println("read body")
-		c.String(http.StatusBadRequest, "error: bad request")
-		return fmt.Errorf("bad request: %w", err)
+
+		return c.String(http.StatusBadRequest, "error: bad request")
 	}
 	link := string(body)
 
-	if len(link) > 2048 {
-		c.String(http.StatusBadRequest, "error: the link cannot be longer than 2048 characters")
-		return fmt.Errorf("the link cannot be longer than 2048 characters: %w", err)
+	if len(link) > lenInt {
+
+		return c.String(http.StatusBadRequest, "error: the link cannot be longer than 2048 characters")
 	}
 	_, err = url.ParseRequestURI(link)
 	if err != nil {
-		c.String(http.StatusBadRequest, "error: the link is invalid")
-		return fmt.Errorf("the link is invalid: %w", err)
+
+		return c.String(http.StatusBadRequest, "error: the link is invalid")
+
 	}
 
 	url, ok := db.IDReadURL(link)
 	if !ok {
 		url, err = shortener(link)
 		if err != nil {
-			c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
-			return fmt.Errorf("failed to create a shortened URL: %w", err)
+
+			return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
+
 		}
 	}
 
@@ -90,39 +82,40 @@ func createURL(c echo.Context) error {
 func createJSONURL(c echo.Context) error {
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
-		c.String(http.StatusBadRequest, "error: bad request")
-		return fmt.Errorf("read body: %w", err)
+
+		return c.String(http.StatusBadRequest, "error: bad request")
+
 	}
 
 	JSONlink := make(map[string]string)
 	err = json.Unmarshal(body, &JSONlink)
 	if err != nil {
-		c.String(http.StatusBadRequest, "error: bad request")
-		return fmt.Errorf("json unmarshal error: %w", err)
+
+		return c.String(http.StatusBadRequest, "error: bad request")
 	}
 
 	link, ok := JSONlink["url"]
 	if !ok {
-		c.String(http.StatusNotFound, "error: no such link")
-		return fmt.Errorf("no such link: %w", err)
+
+		return c.String(http.StatusNotFound, "error: no such link")
 	}
-	if len(link) > 2048 {
-		c.String(http.StatusBadRequest, "error: the link cannot be longer than 2048 characters")
-		return fmt.Errorf("the link cannot be longer than 2048 characters: %w", err)
+	if len(link) > lenInt {
+
+		return c.String(http.StatusBadRequest, "error: the link cannot be longer than 2048 characters")
 	}
 
 	_, err = url.ParseRequestURI(link)
 	if err != nil {
-		c.String(http.StatusBadRequest, "error: the link is invalid")
-		return fmt.Errorf("the link is invalid: %w", err)
+
+		return c.String(http.StatusBadRequest, "error: the link is invalid")
 	}
 
 	url, ok := db.IDReadURL(link)
 	if !ok {
 		url, err = shortener(link)
 		if err != nil {
-			c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
-			return fmt.Errorf("failed to create a shortened URL: %w", err)
+
+			return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
 		}
 	}
 
@@ -139,8 +132,8 @@ func receiveURL(c echo.Context) error {
 
 	url, ok := db.IDReadURL(id)
 	if !ok {
-		c.String(http.StatusNotFound, "error: there is no such link")
-		return fmt.Errorf("there is no such link")
+
+		return c.String(http.StatusNotFound, "error: there is no such link")
 	}
 
 	c.Redirect(http.StatusTemporaryRedirect, url)
