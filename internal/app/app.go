@@ -33,7 +33,6 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
 
 	err := db.ReadDB(fsPath)
 	if err != nil {
-
 		log.Panic(err)
 	}
 

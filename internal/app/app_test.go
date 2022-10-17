@@ -23,6 +23,7 @@ var (
 )
 
 func TestGetURL(t *testing.T) {
+	fsPath = "db"
 	for _, testCase := range tests {
 		short, err := shortener(testCase.long)
 		if err != nil {
