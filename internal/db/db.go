@@ -3,7 +3,6 @@ package db
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"sync"
 )
@@ -18,26 +17,16 @@ var m = DBMap{
 	mux: sync.Mutex{},
 }
 
-const defaultDbPath = "./db.txt"
-
 func ReadDB(fileStoragePath string) error {
 	if fileStoragePath == "" {
-		fileStoragePath = defaultDbPath
+
+		return nil
 	}
 
 	mString, err := os.ReadFile(fileStoragePath)
 	if err != nil {
-		dbFileNew, err := os.Create(fileStoragePath)
-		if err != nil {
-			log.Fatal(err)
-		}
-		dbFileNew.Close()
 
-		mString, err = os.ReadFile(fileStoragePath)
-		if err != nil {
-			log.Fatal(err)
-		}
-
+		return nil
 	}
 
 	m.mux.Lock()
@@ -56,9 +45,9 @@ func WriteDB(fileStoragePath string, id string, s string) error {
 	if err != nil {
 		return fmt.Errorf("json encoding error: %w", err)
 	}
-	err = os.WriteFile(fileStoragePath, []byte(jsonStr), 0666) //запись мапы в файл
+	err = os.WriteFile(fileStoragePath, jsonStr, 0666) //запись мапы в файл
 	if err != nil {
-		return fmt.Errorf("data write to file error: %w", err)
+		return fmt.Errorf("write to file erro: %w", err)
 	}
 	return nil
 }
