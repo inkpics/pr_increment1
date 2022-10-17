@@ -19,13 +19,11 @@ var m = DBMap{
 
 func ReadDB(fileStoragePath string) error {
 	if fileStoragePath == "" {
-
 		return nil
 	}
 
 	mString, err := os.ReadFile(fileStoragePath)
 	if err != nil {
-
 		return nil
 	}
 
