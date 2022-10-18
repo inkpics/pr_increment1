@@ -8,7 +8,7 @@ import (
 )
 
 const baseServerAddress = "localhost:8080"
-const defoultDBPath = "../../internal/db/db"
+const defoultDBPath = "db"
 
 func main() {
 	var serverAddress string
