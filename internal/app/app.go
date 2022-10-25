@@ -23,7 +23,7 @@ var (
 	base   string
 )
 
-type Res struct {
+type res struct {
 	Result string `json:"result"`
 }
 
@@ -48,9 +48,9 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
 func createURL(c echo.Context) error {
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
-		fmt.Println("read body")
-		c.String(http.StatusBadRequest, "error: bad request")
 
+		c.String(http.StatusBadRequest, "error: bad request")
+		return fmt.Errorf("read body error:  %w", err)
 	}
 	link := string(body)
 
@@ -61,7 +61,7 @@ func createURL(c echo.Context) error {
 	_, err = url.ParseRequestURI(link)
 	if err != nil {
 		c.String(http.StatusBadRequest, "error: the link is invalid")
-
+		return fmt.Errorf("the link is invalid error:  %w", err)
 	}
 
 	url, ok := db.IDReadURL(link)
@@ -69,7 +69,7 @@ func createURL(c echo.Context) error {
 		url, err = shortener(link)
 		if err != nil {
 			c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
-
+			return fmt.Errorf("failed to create a shortened URL error:  %w", err)
 		}
 	}
 
@@ -80,20 +80,20 @@ func createJSONURL(c echo.Context) error {
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		c.String(http.StatusBadRequest, "error: bad request")
-
+		return fmt.Errorf("read body error:  %w", err)
 	}
 
 	JSONlink := make(map[string]string)
 	err = json.Unmarshal(body, &JSONlink)
 	if err != nil {
 		c.String(http.StatusBadRequest, "error: bad request")
-
+		return fmt.Errorf("JSON read error:  %w", err)
 	}
 
 	link, ok := JSONlink["url"]
 	if !ok {
-		c.String(http.StatusNotFound, "error: no such link")
-
+		c.String(http.StatusBadRequest, "error: bad request")
+		return fmt.Errorf("JSON read error:  %w", err)
 	}
 	if len(link) > intLeng {
 		c.String(http.StatusBadRequest, "error: the link cannot be longer than 2048 characters")
@@ -103,7 +103,7 @@ func createJSONURL(c echo.Context) error {
 	_, err = url.ParseRequestURI(link)
 	if err != nil {
 		c.String(http.StatusBadRequest, "error: the link is invalid")
-
+		return fmt.Errorf("the link is invalid error:  %w", err)
 	}
 
 	url, ok := db.IDReadURL(link)
@@ -111,11 +111,11 @@ func createJSONURL(c echo.Context) error {
 		url, err = shortener(link)
 		if err != nil {
 			c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
-
+			return fmt.Errorf("failed to create a shortened URL error:  %w", err)
 		}
 	}
 
-	result := &Res{
+	result := &res{
 		Result: base + "/" + url,
 	}
 
@@ -129,7 +129,7 @@ func receiveURL(c echo.Context) error {
 	url, ok := db.IDReadURL(id)
 	if !ok {
 		c.String(http.StatusNotFound, "error: there is no such link")
-
+		return fmt.Errorf("there is no such link")
 	}
 
 	c.Redirect(http.StatusTemporaryRedirect, url)

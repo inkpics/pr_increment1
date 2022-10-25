@@ -24,7 +24,7 @@ func ReadDB(fileStoragePath string) error {
 
 	mString, err := os.ReadFile(fileStoragePath)
 	if err != nil {
-		return nil
+		return fmt.Errorf("write to file error: %w", err)
 	}
 
 	m.mux.Lock()
@@ -45,7 +45,7 @@ func WriteDB(fileStoragePath string, id string, s string) error {
 	}
 	err = os.WriteFile(fileStoragePath, jsonStr, 0666) //запись мапы в файл
 	if err != nil {
-		return fmt.Errorf("write to file erro: %w", err)
+		return fmt.Errorf("write to file error: %w", err)
 	}
 	return nil
 }
