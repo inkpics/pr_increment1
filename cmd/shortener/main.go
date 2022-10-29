@@ -3,10 +3,11 @@ package main
 import (
 	"flag"
 	"os"
+
+	"github.com/inkpics/pr_increment1/internal/app"
 )
 
 const baseServerAddress = "localhost:8080"
-
 const defaultDBPath = "db"
 
 func main() {
@@ -31,4 +32,5 @@ func main() {
 		fileStoragePath = defaultDBPath
 	}
 
+	app.ShortenerInit(serverAddress, baseURL, fileStoragePath)
 }
