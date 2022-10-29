@@ -24,7 +24,7 @@ func ReadDB(fileStoragePath string) error {
 
 	mString, err := os.ReadFile(fileStoragePath)
 	if err != nil {
-		return fmt.Errorf("write to file error: %w", err)
+		return fmt.Errorf("read from file error: %w", err)
 	}
 
 	m.mux.Lock()
@@ -36,6 +36,10 @@ func ReadDB(fileStoragePath string) error {
 	return nil
 }
 func WriteDB(fileStoragePath string, id string, s string) error {
+	if fileStoragePath == "" {
+		return nil
+	}
+
 	m.mux.Lock()
 	m.mp[id] = s //доступ к мапе на запись ключа
 	m.mux.Unlock()

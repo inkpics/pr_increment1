@@ -8,7 +8,6 @@ import (
 )
 
 const baseServerAddress = "localhost:8080"
-const defoultDBPath = "db"
 
 func main() {
 	var serverAddress string
@@ -27,10 +26,5 @@ func main() {
 	if baseURL == "" {
 		baseURL = "http://" + serverAddress
 	}
-
-	if fileStoragePath == "" {
-		fileStoragePath = defoultDBPath
-	}
-
 	app.ShortenerInit(serverAddress, baseURL, fileStoragePath)
 }
