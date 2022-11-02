@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -23,6 +24,9 @@ func ReadDB(fileStoragePath string) error {
 	}
 
 	mString, err := os.ReadFile(fileStoragePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("read from file error: %w", err)
 	}
