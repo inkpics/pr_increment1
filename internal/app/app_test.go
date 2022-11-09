@@ -25,7 +25,7 @@ var (
 func TestGetURL(t *testing.T) {
 	fsPath = "db"
 	for _, testCase := range tests {
-		short, err := shortener(testCase.long)
+		short, err := shortener(testCase.long, "")
 		if err != nil {
 			t.Errorf("can't shorten link %v", testCase.long)
 		}
@@ -43,7 +43,7 @@ func TestGetURL(t *testing.T) {
 
 func TestShortener(t *testing.T) {
 	for _, testCase := range tests {
-		short, err := shortener(testCase.long)
+		short, err := shortener(testCase.long, "")
 		if err != nil {
 			t.Errorf("can't shorten link %v", testCase.long)
 		}
