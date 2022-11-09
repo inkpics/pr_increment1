@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	_ "github.com/lib/pq"
 
 	"github.com/google/uuid"
 	"github.com/inkpics/pr_increment1/internal/db"
@@ -25,6 +28,7 @@ const intLeng = 2048
 var (
 	fsPath string
 	base   string
+	conn   string
 )
 
 var enc = "secret"
@@ -38,9 +42,10 @@ type link struct {
 	OriginalURL string `json:"original_url"`
 }
 
-func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
+func ShortenerInit(serverAddress, baseURL, fileStoragePath, dbConn string) {
 	fsPath = fileStoragePath
 	base = baseURL
+	conn = dbConn
 
 	err := db.ReadDB(fsPath)
 	if err != nil {
@@ -54,6 +59,7 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
 	e.POST("/api/shorten", createJSONURL)
 	e.GET("/:id", receiveURL)
 	e.GET("/api/user/urls", receiveListURL)
+	e.GET("/ping", ping)
 	e.Logger.Fatal(e.Start(serverAddress))
 }
 
@@ -149,6 +155,16 @@ func receiveListURL(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, persLinks)
+}
+
+func ping(c echo.Context) error {
+	db, err := sql.Open("postgres", conn)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "error: db is not active")
+	}
+	defer db.Close()
+
+	return c.String(http.StatusOK, "db is active")
 }
 
 func checkPerson(c echo.Context, enc string) string {

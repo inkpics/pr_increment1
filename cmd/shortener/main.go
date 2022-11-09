@@ -14,10 +14,12 @@ func main() {
 	var serverAddress string
 	var baseURL string
 	var fileStoragePath string
+	var dbConn string
 
 	flag.StringVar(&serverAddress, "a", os.Getenv("SERVER_ADDRESS"), "server adress")
 	flag.StringVar(&baseURL, "b", os.Getenv("BASE_URL"), "URL")
 	flag.StringVar(&fileStoragePath, "f", os.Getenv("FILE_STORAGE_PATH"), "data file storage path")
+	flag.StringVar(&dbConn, "d", os.Getenv("DATABASE_DSN"), "database connection")
 	flag.Parse()
 
 	if serverAddress == "" {
@@ -32,5 +34,5 @@ func main() {
 		fileStoragePath = defaultDBPath
 	}
 
-	app.ShortenerInit(serverAddress, baseURL, fileStoragePath)
+	app.ShortenerInit(serverAddress, baseURL, fileStoragePath, dbConn)
 }
