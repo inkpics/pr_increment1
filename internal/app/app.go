@@ -2,7 +2,10 @@ package app
 
 import (
 	"crypto"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +14,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/inkpics/pr_increment1/internal/db"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -23,8 +27,15 @@ var (
 	base   string
 )
 
+var enc = "secret"
+
 type res struct {
 	Result string `json:"result"`
+}
+
+type link struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
 }
 
 func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
@@ -42,6 +53,7 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath string) {
 	e.POST("/", createURL)
 	e.POST("/api/shorten", createJSONURL)
 	e.GET("/:id", receiveURL)
+	e.GET("/api/user/urls", receiveListURL)
 	e.Logger.Fatal(e.Start(serverAddress))
 }
 
@@ -62,7 +74,7 @@ func createURL(c echo.Context) error {
 
 	url, ok := db.IDReadURL(link)
 	if !ok {
-		url, err = shortener(link)
+		url, err = shortener(link, "")
 		if err != nil {
 			return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
 		}
@@ -97,7 +109,7 @@ func createJSONURL(c echo.Context) error {
 
 	url, ok := db.IDReadURL(link)
 	if !ok {
-		url, err = shortener(link)
+		url, err = shortener(link, checkPerson(c, enc))
 		if err != nil {
 			return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
 		}
@@ -121,7 +133,62 @@ func receiveURL(c echo.Context) error {
 	return c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
-func shortener(s string) (string, error) {
+func receiveListURL(c echo.Context) error {
+	person := checkPerson(c, enc)
+	list, ok := db.ReceiveListURL(person)
+	if !ok {
+		return c.String(http.StatusNoContent, "error: person have no links")
+	}
+
+	var persLinks []*link
+	for short, orig := range list {
+		persLinks = append(persLinks, &link{
+			ShortURL:    base + "/" + short,
+			OriginalURL: orig,
+		})
+	}
+
+	return c.JSON(http.StatusOK, persLinks)
+}
+
+func checkPerson(c echo.Context, enc string) string {
+	person, err0 := cookie(c, "person", "")
+	token, err1 := cookie(c, "token", "")
+	if err0 == nil && err1 == nil && token == signition(person, enc) {
+		return person
+	}
+
+	person = uuid.New().String()
+	cookie(c, "person", person)
+	cookie(c, "token", signition(person, enc))
+	return person
+}
+
+func signition(person string, enc string) string {
+	hm := hmac.New(sha256.New, []byte(enc))
+	hm.Write([]byte(person))
+	result := hm.Sum(nil)
+	return hex.EncodeToString(result)[:16]
+}
+
+func cookie(c echo.Context, name string, val string) (string, error) {
+	coo := new(http.Cookie)
+
+	if val == "" {
+		coo, err := c.Cookie(name)
+		if err != nil {
+			return "", err
+		}
+		return coo.Value, nil
+	}
+
+	coo.Name = name
+	coo.Value = val
+	c.SetCookie(coo)
+	return "", nil
+}
+
+func shortener(s string, person string) (string, error) {
 	h := crypto.MD5.New()
 	if _, err := h.Write([]byte(s)); err != nil {
 		return "", fmt.Errorf("abbreviation  URL error: %w", err)
@@ -132,7 +199,7 @@ func shortener(s string) (string, error) {
 	id = strings.ToLower(id)[:len(id)-1]
 	id = strings.ReplaceAll(id, "/", "")
 	id = strings.ReplaceAll(id, "=", "")
-	err := db.WriteDB(fsPath, id, s)
+	err := db.WriteDB(fsPath, person, id, s)
 	if err != nil {
 		return "", fmt.Errorf("error write data to file: %w", err)
 	}

@@ -9,12 +9,12 @@ import (
 )
 
 type DBMap struct {
-	mp  map[string]string
+	mp  map[string]map[string]string
 	mux sync.Mutex
 }
 
 var m = DBMap{
-	mp:  make(map[string]string),
+	mp:  make(map[string]map[string]string),
 	mux: sync.Mutex{},
 }
 
@@ -39,14 +39,19 @@ func ReadDB(fileStoragePath string) error {
 	}
 	return nil
 }
-func WriteDB(fileStoragePath string, id string, s string) error {
+func WriteDB(fileStoragePath string, person string, id string, s string) error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	if len(m.mp[person]) == 0 {
+		m.mp[person] = make(map[string]string)
+	}
+	m.mp[person][id] = s
+
 	if fileStoragePath == "" {
 		return nil
 	}
 
-	m.mux.Lock()
-	m.mp[id] = s //доступ к мапе на запись ключа
-	m.mux.Unlock()
 	jsonStr, err := json.Marshal(m.mp)
 	if err != nil {
 		return fmt.Errorf("json encoding error: %w", err)
@@ -62,11 +67,25 @@ func IDReadURL(id string) (string, bool) {
 		return "", false
 	}
 	m.mux.Lock()
-	url, ok := m.mp[id] // доступ к мапе на чтение URL по ключу
-	m.mux.Unlock()
-	if !ok {
-		return "", false
+	defer m.mux.Unlock()
+
+	for person := range m.mp {
+		url, ok := m.mp[person][id]
+		if ok {
+			return url, true
+		}
 	}
 
-	return url, true
+	return "", false
+}
+func ReceiveListURL(person string) (map[string]string, bool) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	lst, ok := m.mp[person]
+	if !ok {
+		return lst, false
+	}
+
+	return lst, true
 }
