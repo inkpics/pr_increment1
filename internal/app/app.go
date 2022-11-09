@@ -74,7 +74,7 @@ func createURL(c echo.Context) error {
 
 	url, ok := db.IDReadURL(link)
 	if !ok {
-		url, err = shortener(link, "")
+		url, err = shortener(link, checkPerson(c, enc))
 		if err != nil {
 			return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
 		}
