@@ -47,7 +47,7 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath, dbConn string) {
 	base = baseURL
 	conn = dbConn
 
-	err := db.ReadDB(fsPath)
+	err := db.ReadDB(fsPath, conn)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -215,7 +215,7 @@ func shortener(s string, person string) (string, error) {
 	id = strings.ToLower(id)[:len(id)-1]
 	id = strings.ReplaceAll(id, "/", "")
 	id = strings.ReplaceAll(id, "=", "")
-	err := db.WriteDB(fsPath, person, id, s)
+	err := db.WriteDB(fsPath, conn, person, id, s)
 	if err != nil {
 		return "", fmt.Errorf("error write data to file: %w", err)
 	}

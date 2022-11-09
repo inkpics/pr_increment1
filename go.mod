@@ -11,6 +11,7 @@ require (
 require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/google/uuid v1.3.0
+	github.com/jmoiron/sqlx v1.3.5
 	github.com/labstack/gommon v0.3.1 // indirect
 	github.com/lib/pq v1.10.7
 	github.com/mattn/go-colorable v0.1.11 // indirect
