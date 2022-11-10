@@ -42,6 +42,16 @@ type link struct {
 	OriginalURL string `json:"original_url"`
 }
 
+type batchRequest struct {
+	CorrelationID string `json:"correlation_id"`
+	OriginalURL   string `json:"original_url"`
+}
+
+type batchResponse struct {
+	CorrelationID string `json:"correlation_id"`
+	ShortURL      string `json:"short_url"`
+}
+
 func ShortenerInit(serverAddress, baseURL, fileStoragePath, dbConn string) {
 	fsPath = fileStoragePath
 	base = baseURL
@@ -57,6 +67,7 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath, dbConn string) {
 	e.Use(middleware.Decompress())
 	e.POST("/", createURL)
 	e.POST("/api/shorten", createJSONURL)
+	e.POST("/api/shorten/batch", createBatchJSONURL)
 	e.GET("/:id", receiveURL)
 	e.GET("/api/user/urls", receiveListURL)
 	e.GET("/ping", ping)
@@ -126,6 +137,44 @@ func createJSONURL(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, result)
+}
+
+func createBatchJSONURL(c echo.Context) error {
+	body, err := io.ReadAll(c.Request().Body)
+	if err != nil {
+		return c.String(http.StatusBadRequest, "error: bad request")
+	}
+
+	var req []batchRequest
+	err = json.Unmarshal(body, &req)
+	if err != nil {
+		return err
+	}
+
+	var resp []batchResponse
+	for result := range req {
+		link := req[result]
+
+		_, err = url.ParseRequestURI(link.OriginalURL)
+		if err != nil {
+			return c.String(http.StatusBadRequest, "error: the link is invalid")
+		}
+
+		url, ok := db.IDReadURL(link.OriginalURL)
+		if !ok {
+			url, err = shortener(link.OriginalURL, checkPerson(c, enc))
+			if err != nil {
+				return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
+			}
+		}
+
+		resp = append(resp, batchResponse{
+			CorrelationID: link.CorrelationID,
+			ShortURL:      base + "/" + url,
+		})
+	}
+
+	return c.JSON(http.StatusCreated, resp)
 }
 
 func receiveURL(c echo.Context) error {
