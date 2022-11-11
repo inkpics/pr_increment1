@@ -16,8 +16,6 @@ import (
 	"net/url"
 	"strings"
 
-	_ "github.com/lib/pq"
-
 	"github.com/google/uuid"
 	"github.com/inkpics/pr_increment1/internal/db"
 	"github.com/labstack/echo/v4"
