@@ -16,6 +16,8 @@ import (
 	"net/url"
 	"strings"
 
+	_ "github.com/lib/pq"
+
 	"github.com/google/uuid"
 	"github.com/inkpics/pr_increment1/internal/db"
 	"github.com/labstack/echo/v4"
@@ -282,7 +284,7 @@ func shortener(s string, person string) (string, error) {
 	id = strings.ReplaceAll(id, "=", "")
 	err := db.WriteDB(fsPath, conn, person, id, s)
 	if errors.Is(err, db.ErrorDuplicate) {
-		return "", db.ErrorDuplicate
+		return id, db.ErrorDuplicate
 	}
 	if err != nil {
 		return "", fmt.Errorf("error write data to file: %w", err)
