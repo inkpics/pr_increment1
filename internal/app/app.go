@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -92,6 +93,9 @@ func createURL(c echo.Context) error {
 	url, ok := db.IDReadURL(link)
 	if !ok {
 		url, err = shortener(link, checkPerson(c, enc))
+		if errors.Is(err, db.ErrorDuplicate) {
+			return c.String(http.StatusConflict, base+"/"+url)
+		}
 		if err != nil {
 			return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
 		}
@@ -127,6 +131,12 @@ func createJSONURL(c echo.Context) error {
 	url, ok := db.IDReadURL(link)
 	if !ok {
 		url, err = shortener(link, checkPerson(c, enc))
+		if errors.Is(err, db.ErrorDuplicate) {
+			result := &res{
+				Result: base + "/" + url,
+			}
+			return c.JSON(http.StatusConflict, result)
+		}
 		if err != nil {
 			return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
 		}
@@ -152,6 +162,7 @@ func createBatchJSONURL(c echo.Context) error {
 	}
 
 	var resp []batchResponse
+	hasDuplicates := false
 	for result := range req {
 		link := req[result]
 
@@ -163,6 +174,9 @@ func createBatchJSONURL(c echo.Context) error {
 		url, ok := db.IDReadURL(link.OriginalURL)
 		if !ok {
 			url, err = shortener(link.OriginalURL, checkPerson(c, enc))
+			if errors.Is(err, db.ErrorDuplicate) {
+				hasDuplicates = true
+			}
 			if err != nil {
 				return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
 			}
@@ -172,6 +186,10 @@ func createBatchJSONURL(c echo.Context) error {
 			CorrelationID: link.CorrelationID,
 			ShortURL:      base + "/" + url,
 		})
+	}
+
+	if hasDuplicates {
+		return c.JSON(http.StatusConflict, resp)
 	}
 
 	return c.JSON(http.StatusCreated, resp)
@@ -265,6 +283,9 @@ func shortener(s string, person string) (string, error) {
 	id = strings.ReplaceAll(id, "/", "")
 	id = strings.ReplaceAll(id, "=", "")
 	err := db.WriteDB(fsPath, conn, person, id, s)
+	if errors.Is(err, db.ErrorDuplicate) {
+		return "", db.ErrorDuplicate
+	}
 	if err != nil {
 		return "", fmt.Errorf("error write data to file: %w", err)
 	}

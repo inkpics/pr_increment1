@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 )
 
@@ -27,6 +28,8 @@ var m = DBMap{
 	mux: sync.Mutex{},
 }
 
+var ErrorDuplicate = fmt.Errorf("duplicate record")
+
 func ReadDB(fileStoragePath string, conn string) error {
 	if conn != "" {
 		db, err := sqlx.Connect("postgres", conn)
@@ -38,7 +41,7 @@ func ReadDB(fileStoragePath string, conn string) error {
 		db.MustExec(`
 			CREATE TABLE IF NOT EXISTS links (
 				person text,
-				short text,
+				short text unique,
 				long text
 			);
 		`)
@@ -97,11 +100,19 @@ func WriteDB(fileStoragePath string, conn string, person string, id string, s st
 	if conn != "" {
 		db, err := sqlx.Connect("postgres", conn)
 		if err != nil {
-			return err
+			return fmt.Errorf("db error: %w", err)
 		}
 		defer db.Close()
 
-		db.MustExec("INSERT INTO links VALUES ($1, $2, $3)", person, id, s)
+		_, err = db.Exec("INSERT INTO links VALUES ($1, $2, $3)", person, id, s)
+		if err != nil {
+			if err, ok := err.(*pq.Error); ok {
+				if err.Code == "23505" {
+					return ErrorDuplicate
+				}
+			}
+			return fmt.Errorf("db error: %w", err)
+		}
 
 		return nil
 	}
