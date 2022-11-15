@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"crypto/hmac"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -162,7 +161,6 @@ func createBatchJSONURL(c echo.Context) error {
 	}
 
 	var resp []batchResponse
-	hasDuplicates := false
 	for result := range req {
 		link := req[result]
 
@@ -174,9 +172,6 @@ func createBatchJSONURL(c echo.Context) error {
 		url, ok := db.IDReadURL(link.OriginalURL)
 		if !ok {
 			url, err = shortener(link.OriginalURL, checkPerson(c, enc))
-			if errors.Is(err, db.ErrorDuplicate) {
-				hasDuplicates = true
-			}
 			if err != nil {
 				return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
 			}
@@ -186,10 +181,6 @@ func createBatchJSONURL(c echo.Context) error {
 			CorrelationID: link.CorrelationID,
 			ShortURL:      base + "/" + url,
 		})
-	}
-
-	if hasDuplicates {
-		return c.JSON(http.StatusConflict, resp)
 	}
 
 	return c.JSON(http.StatusCreated, resp)
@@ -225,11 +216,9 @@ func receiveListURL(c echo.Context) error {
 }
 
 func ping(c echo.Context) error {
-	db, err := sql.Open("postgres", conn)
-	if err != nil {
+	if ok := db.Ping(conn); !ok {
 		return c.String(http.StatusInternalServerError, "error: db is not active")
 	}
-	defer db.Close()
 
 	return c.String(http.StatusOK, "db is active")
 }
@@ -247,14 +236,14 @@ func checkPerson(c echo.Context, enc string) string {
 	return person
 }
 
-func signition(person string, enc string) string {
+func signition(person, enc string) string {
 	hm := hmac.New(sha256.New, []byte(enc))
 	hm.Write([]byte(person))
 	result := hm.Sum(nil)
 	return hex.EncodeToString(result)[:16]
 }
 
-func cookie(c echo.Context, name string, val string) (string, error) {
+func cookie(c echo.Context, name, val string) (string, error) {
 	coo := new(http.Cookie)
 
 	if val == "" {
@@ -271,7 +260,7 @@ func cookie(c echo.Context, name string, val string) (string, error) {
 	return "", nil
 }
 
-func shortener(s string, person string) (string, error) {
+func shortener(s, person string) (string, error) {
 	h := crypto.MD5.New()
 	if _, err := h.Write([]byte(s)); err != nil {
 		return "", fmt.Errorf("abbreviation  URL error: %w", err)

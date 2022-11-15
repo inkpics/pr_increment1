@@ -12,9 +12,10 @@ import (
 )
 
 type DBMap struct {
-	mp  map[string]map[string]string
-	mux sync.Mutex
-	db  *sqlx.DB
+	mp          map[string]map[string]string
+	mux         sync.Mutex
+	db          *sqlx.DB
+	dbConnected bool
 }
 
 type rec struct {
@@ -24,16 +25,17 @@ type rec struct {
 }
 
 var m = DBMap{
-	mp:  make(map[string]map[string]string),
-	mux: sync.Mutex{},
-	db:  nil,
+	mp:          make(map[string]map[string]string),
+	mux:         sync.Mutex{},
+	db:          nil,
+	dbConnected: false,
 }
 
 var errPgDuplicateCode pq.ErrorCode = "23505"
 var ErrorDuplicate = fmt.Errorf("duplicate record")
 
 func connect(conn string) (*sqlx.DB, error) {
-	if m.db != nil {
+	if m.dbConnected {
 		return m.db, nil
 	}
 
@@ -42,6 +44,7 @@ func connect(conn string) (*sqlx.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	m.dbConnected = true
 	return m.db, nil
 }
 
