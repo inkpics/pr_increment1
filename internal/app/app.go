@@ -158,7 +158,7 @@ func createBatchJSONURL(c echo.Context) error {
 	var req []batchRequest
 	err = json.Unmarshal(body, &req)
 	if err != nil {
-		return err
+		return c.String(http.StatusBadRequest, "error: bad request")
 	}
 
 	var resp []batchResponse

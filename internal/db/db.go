@@ -14,6 +14,7 @@ import (
 type DBMap struct {
 	mp  map[string]map[string]string
 	mux sync.Mutex
+	db  *sqlx.DB
 }
 
 type rec struct {
@@ -25,17 +26,44 @@ type rec struct {
 var m = DBMap{
 	mp:  make(map[string]map[string]string),
 	mux: sync.Mutex{},
+	db:  nil,
 }
 
+var errPgDuplicateCode pq.ErrorCode = "23505"
 var ErrorDuplicate = fmt.Errorf("duplicate record")
 
-func ReadDB(fileStoragePath string, conn string) error {
+func connect(conn string) (*sqlx.DB, error) {
+	if m.db != nil {
+		return m.db, nil
+	}
+
+	var err error
+	m.db, err = sqlx.Connect("postgres", conn)
+	if err != nil {
+		return nil, err
+	}
+	return m.db, nil
+}
+
+func Ping(conn string) bool {
+	db, err := connect(conn)
+	if err != nil {
+		return false
+	}
+
+	if err = db.Ping(); err != nil {
+		return false
+	}
+
+	return true
+}
+
+func ReadDB(fileStoragePath, conn string) error {
 	if conn != "" {
-		db, err := sqlx.Connect("postgres", conn)
+		db, err := connect(conn)
 		if err != nil {
 			return err
 		}
-		defer db.Close()
 
 		db.MustExec(`
 			CREATE TABLE IF NOT EXISTS links (
@@ -50,13 +78,13 @@ func ReadDB(fileStoragePath string, conn string) error {
 		if err != nil {
 			return err
 		}
+		if len(m.mp[r.Person]) == 0 {
+			m.mp[r.Person] = make(map[string]string)
+		}
 		for rows.Next() {
 			err := rows.StructScan(&r)
 			if err != nil {
 				return err
-			}
-			if len(m.mp[r.Person]) == 0 {
-				m.mp[r.Person] = make(map[string]string)
 			}
 			m.mp[r.Person][r.Short] = r.Long
 		}
@@ -87,7 +115,7 @@ func ReadDB(fileStoragePath string, conn string) error {
 
 	return nil
 }
-func WriteDB(fileStoragePath string, conn string, person string, id string, s string) error {
+func WriteDB(fileStoragePath, conn, person, id, s string) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -97,16 +125,15 @@ func WriteDB(fileStoragePath string, conn string, person string, id string, s st
 	m.mp[person][id] = s
 
 	if conn != "" {
-		db, err := sqlx.Connect("postgres", conn)
+		db, err := connect(conn)
 		if err != nil {
 			return fmt.Errorf("db error: %w", err)
 		}
-		defer db.Close()
 
 		_, err = db.Exec("INSERT INTO links VALUES ($1, $2, $3)", person, id, s)
 		if err != nil {
 			if err, ok := err.(*pq.Error); ok {
-				if err.Code == "23505" {
+				if err.Code == errPgDuplicateCode {
 					return ErrorDuplicate
 				}
 			}
