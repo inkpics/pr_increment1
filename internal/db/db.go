@@ -34,27 +34,32 @@ var m = DBMap{
 var errPgDuplicateCode pq.ErrorCode = "23505"
 var ErrorDuplicate = fmt.Errorf("duplicate record")
 
-func connect(conn string) (*sqlx.DB, error) {
+func connect(conn string) error {
 	if m.dbConnected {
-		return m.db, nil
+		return nil
 	}
 
 	var err error
 	m.db, err = sqlx.Connect("postgres", conn)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	m.dbConnected = true
-	return m.db, nil
+	return nil
+}
+
+func Close() {
+	if m.dbConnected {
+		m.db.Close()
+	}
 }
 
 func Ping(conn string) bool {
-	db, err := connect(conn)
-	if err != nil {
+	if err := connect(conn); err != nil {
 		return false
 	}
 
-	if err = db.Ping(); err != nil {
+	if err := m.db.Ping(); err != nil {
 		return false
 	}
 
@@ -63,12 +68,11 @@ func Ping(conn string) bool {
 
 func ReadDB(fileStoragePath, conn string) error {
 	if conn != "" {
-		db, err := connect(conn)
-		if err != nil {
+		if err := connect(conn); err != nil {
 			return err
 		}
 
-		db.MustExec(`
+		m.db.MustExec(`
 			CREATE TABLE IF NOT EXISTS links (
 				person text,
 				short text unique,
@@ -77,7 +81,7 @@ func ReadDB(fileStoragePath, conn string) error {
 		`)
 
 		r := rec{}
-		rows, err := db.Queryx("SELECT * FROM links")
+		rows, err := m.db.Queryx("SELECT * FROM links")
 		if err != nil {
 			return err
 		}
@@ -128,12 +132,11 @@ func WriteDB(fileStoragePath, conn, person, id, s string) error {
 	m.mp[person][id] = s
 
 	if conn != "" {
-		db, err := connect(conn)
-		if err != nil {
+		if err := connect(conn); err != nil {
 			return fmt.Errorf("db error: %w", err)
 		}
 
-		_, err = db.Exec("INSERT INTO links VALUES ($1, $2, $3)", person, id, s)
+		_, err := m.db.Exec("INSERT INTO links VALUES ($1, $2, $3)", person, id, s)
 		if err != nil {
 			if err, ok := err.(*pq.Error); ok {
 				if err.Code == errPgDuplicateCode {
