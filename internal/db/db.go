@@ -12,10 +12,9 @@ import (
 )
 
 type DBMap struct {
-	mp          map[string]map[string]string
-	mux         sync.Mutex
-	db          *sqlx.DB
-	dbConnected bool
+	mp  map[string]map[string]string
+	mux sync.Mutex
+	db  *sqlx.DB
 }
 
 type rec struct {
@@ -25,40 +24,21 @@ type rec struct {
 }
 
 var m = DBMap{
-	mp:          make(map[string]map[string]string),
-	mux:         sync.Mutex{},
-	db:          nil,
-	dbConnected: false,
+	mp:  make(map[string]map[string]string),
+	mux: sync.Mutex{},
+	db:  nil,
 }
 
 var errPgDuplicateCode pq.ErrorCode = "23505"
 var ErrorDuplicate = fmt.Errorf("duplicate record")
 
-func connect(conn string) error {
-	if m.dbConnected {
-		return nil
-	}
-
-	var err error
-	m.db, err = sqlx.Connect("postgres", conn)
-	if err != nil {
-		return err
-	}
-	m.dbConnected = true
-	return nil
-}
-
-func Close() {
-	if m.dbConnected {
+func Close(conn string) {
+	if conn != "" {
 		m.db.Close()
 	}
 }
 
 func Ping(conn string) bool {
-	if err := connect(conn); err != nil {
-		return false
-	}
-
 	if err := m.db.Ping(); err != nil {
 		return false
 	}
@@ -66,63 +46,109 @@ func Ping(conn string) bool {
 	return true
 }
 
-func ReadDB(fileStoragePath, conn string) error {
+func readPg(conn string) error {
+	var err error
+	m.db, err = sqlx.Connect("postgres", conn)
+	if err != nil {
+		return err
+	}
+
+	m.db.MustExec(`
+		CREATE TABLE IF NOT EXISTS links (
+			person text,
+			short text unique,
+			long text
+		);
+	`)
+
+	r := rec{}
+	rows, err := m.db.Queryx("SELECT * FROM links")
+	if err != nil {
+		return err
+	}
+	if len(m.mp[r.Person]) == 0 {
+		m.mp[r.Person] = make(map[string]string)
+	}
+	for rows.Next() {
+		err := rows.StructScan(&r)
+		if err != nil {
+			return err
+		}
+		m.mp[r.Person][r.Short] = r.Long
+	}
+	err = rows.Err()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func readFileStorage(fileStoragePath string) error {
+	mString, err := os.ReadFile(fileStoragePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read from file error: %w", err)
+	}
+
+	m.mux.Lock()
+	err = json.Unmarshal(mString, &m.mp)
+	m.mux.Unlock()
+	if err != nil {
+		return fmt.Errorf("json unmarshal: %w", err)
+	}
+
+	return nil
+}
+
+func ReadStorage(fileStoragePath, conn string) error {
 	if conn != "" {
-		if err := connect(conn); err != nil {
-			return err
-		}
-
-		m.db.MustExec(`
-			CREATE TABLE IF NOT EXISTS links (
-				person text,
-				short text unique,
-				long text
-			);
-		`)
-
-		r := rec{}
-		rows, err := m.db.Queryx("SELECT * FROM links")
+		err := readPg(conn)
 		if err != nil {
-			return err
-		}
-		if len(m.mp[r.Person]) == 0 {
-			m.mp[r.Person] = make(map[string]string)
-		}
-		for rows.Next() {
-			err := rows.StructScan(&r)
-			if err != nil {
-				return err
-			}
-			m.mp[r.Person][r.Short] = r.Long
-		}
-		err = rows.Err()
-		if err != nil {
-			return err
+			return fmt.Errorf("read from db error: %w", err)
 		}
 
 		return nil
 	}
 
 	if fileStoragePath != "" {
-		mString, err := os.ReadFile(fileStoragePath)
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
+		err := readFileStorage(fileStoragePath)
 		if err != nil {
-			return fmt.Errorf("read from file error: %w", err)
-		}
-
-		m.mux.Lock()
-		err = json.Unmarshal(mString, &m.mp)
-		m.mux.Unlock()
-		if err != nil {
-			return fmt.Errorf("json unmarshal: %w", err)
+			return fmt.Errorf("read from file storage error: %w", err)
 		}
 	}
 
 	return nil
 }
-func WriteDB(fileStoragePath, conn, person, id, s string) error {
+
+func writePg(person, id, s string) error {
+	_, err := m.db.Exec("INSERT INTO links VALUES ($1, $2, $3)", person, id, s)
+	if err != nil {
+		if err, ok := err.(*pq.Error); ok {
+			if err.Code == errPgDuplicateCode {
+				return ErrorDuplicate
+			}
+		}
+		return fmt.Errorf("pg error: %w", err)
+	}
+	return nil
+}
+
+func writeFileStorage(fileStoragePath string) error {
+	jsonStr, err := json.Marshal(m.mp)
+	if err != nil {
+		return fmt.Errorf("json encoding error: %w", err)
+	}
+	err = os.WriteFile(fileStoragePath, jsonStr, 0666) //запись мапы в файл
+	if err != nil {
+		return fmt.Errorf("write to file error: %w", err)
+	}
+	return nil
+}
+
+func WriteStorage(fileStoragePath, conn, person, id, s string) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -132,17 +158,8 @@ func WriteDB(fileStoragePath, conn, person, id, s string) error {
 	m.mp[person][id] = s
 
 	if conn != "" {
-		if err := connect(conn); err != nil {
-			return fmt.Errorf("db error: %w", err)
-		}
-
-		_, err := m.db.Exec("INSERT INTO links VALUES ($1, $2, $3)", person, id, s)
+		err := writePg(person, id, s)
 		if err != nil {
-			if err, ok := err.(*pq.Error); ok {
-				if err.Code == errPgDuplicateCode {
-					return ErrorDuplicate
-				}
-			}
 			return fmt.Errorf("db error: %w", err)
 		}
 
@@ -150,13 +167,9 @@ func WriteDB(fileStoragePath, conn, person, id, s string) error {
 	}
 
 	if fileStoragePath != "" {
-		jsonStr, err := json.Marshal(m.mp)
+		err := writeFileStorage(fileStoragePath)
 		if err != nil {
-			return fmt.Errorf("json encoding error: %w", err)
-		}
-		err = os.WriteFile(fileStoragePath, jsonStr, 0666) //запись мапы в файл
-		if err != nil {
-			return fmt.Errorf("write to file error: %w", err)
+			return fmt.Errorf("file storage error: %w", err)
 		}
 	}
 

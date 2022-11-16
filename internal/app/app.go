@@ -57,10 +57,11 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath, dbConn string) {
 	base = baseURL
 	conn = dbConn
 
-	err := db.ReadDB(fsPath, conn)
+	err := db.ReadStorage(fsPath, conn)
 	if err != nil {
 		log.Panic(err)
 	}
+	defer db.Close(conn)
 
 	e := echo.New()
 	e.Use(middleware.Gzip())
@@ -271,7 +272,7 @@ func shortener(s, person string) (string, error) {
 	id = strings.ToLower(id)[:len(id)-1]
 	id = strings.ReplaceAll(id, "/", "")
 	id = strings.ReplaceAll(id, "=", "")
-	err := db.WriteDB(fsPath, conn, person, id, s)
+	err := db.WriteStorage(fsPath, conn, person, id, s)
 	if errors.Is(err, db.ErrorDuplicate) {
 		return id, db.ErrorDuplicate
 	}
