@@ -39,6 +39,10 @@ func Close(conn string) {
 }
 
 func Ping(conn string) bool {
+	if conn == "" {
+		return false
+	}
+
 	if err := m.db.Ping(); err != nil {
 		return false
 	}
