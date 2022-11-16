@@ -66,13 +66,13 @@ func readPg(conn string) error {
 	if err != nil {
 		return err
 	}
-	if len(m.mp[r.Person]) == 0 {
-		m.mp[r.Person] = make(map[string]string)
-	}
 	for rows.Next() {
 		err := rows.StructScan(&r)
 		if err != nil {
 			return err
+		}
+		if len(m.mp[r.Person]) == 0 {
+			m.mp[r.Person] = make(map[string]string)
 		}
 		m.mp[r.Person][r.Short] = r.Long
 	}

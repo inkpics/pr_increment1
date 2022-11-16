@@ -34,5 +34,5 @@ func main() {
 		fileStoragePath = defaultDBPath
 	}
 
-	app.ShortenerInit(serverAddress, baseURL, fileStoragePath, dbConn)
+	app.ShortenerInit(serverAddress, baseURL, "", "")
 }
