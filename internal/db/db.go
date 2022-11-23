@@ -74,6 +74,7 @@ func readPg(conn string) error {
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
 	for rows.Next() {
 		err := rows.StructScan(&r)
 		if err != nil {
@@ -139,7 +140,7 @@ func ReadStorage(fileStoragePath, conn string) error {
 }
 
 func writePg(person, id, s string) error {
-	_, err := m.db.Exec("INSERT INTO links VALUES ($1, $2, $3)", person, id, s)
+	_, err := m.db.Exec("INSERT INTO links VALUES ($1, $2, $3, FALSE)", person, id, s)
 	if err != nil {
 		if err, ok := err.(*pq.Error); ok {
 			if err.Code == errPgDuplicateCode {
