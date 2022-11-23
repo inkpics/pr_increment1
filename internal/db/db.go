@@ -12,21 +12,24 @@ import (
 )
 
 type DBMap struct {
-	mp  map[string]map[string]string
-	mux sync.Mutex
-	db  *sqlx.DB
+	mp    map[string]map[string]string
+	delmp map[string]map[string]string
+	mux   sync.Mutex
+	db    *sqlx.DB
 }
 
 type rec struct {
 	Person string `db:"person"`
 	Short  string `db:"short"`
 	Long   string `db:"long"`
+	Delete bool   `db:"del"`
 }
 
 var m = DBMap{
-	mp:  make(map[string]map[string]string),
-	mux: sync.Mutex{},
-	db:  nil,
+	mp:    make(map[string]map[string]string),
+	delmp: make(map[string]map[string]string),
+	mux:   sync.Mutex{},
+	db:    nil,
 }
 
 var errPgDuplicateCode pq.ErrorCode = "23505"
@@ -61,7 +64,8 @@ func readPg(conn string) error {
 		CREATE TABLE IF NOT EXISTS links (
 			person text,
 			short text unique,
-			long text
+			long text,
+			del bool
 		);
 	`)
 
@@ -75,10 +79,17 @@ func readPg(conn string) error {
 		if err != nil {
 			return err
 		}
-		if len(m.mp[r.Person]) == 0 {
-			m.mp[r.Person] = make(map[string]string)
+		if r.Delete {
+			if len(m.delmp[r.Person]) == 0 {
+				m.delmp[r.Person] = make(map[string]string)
+			}
+			m.delmp[r.Person][r.Short] = r.Long
+		} else {
+			if len(m.mp[r.Person]) == 0 {
+				m.mp[r.Person] = make(map[string]string)
+			}
+			m.mp[r.Person][r.Short] = r.Long
 		}
-		m.mp[r.Person][r.Short] = r.Long
 	}
 	err = rows.Err()
 	if err != nil {
@@ -179,9 +190,9 @@ func WriteStorage(fileStoragePath, conn, person, id, s string) error {
 
 	return nil
 }
-func IDReadURL(id string) (string, bool) {
+func IDReadURL(person, id string) (string, int) {
 	if len(id) <= 0 {
-		return "", false
+		return "", 0
 	}
 	m.mux.Lock()
 	defer m.mux.Unlock()
@@ -189,11 +200,18 @@ func IDReadURL(id string) (string, bool) {
 	for person := range m.mp {
 		url, ok := m.mp[person][id]
 		if ok {
-			return url, true
+			return url, 1
 		}
 	}
 
-	return "", false
+	for person := range m.delmp {
+		url, ok := m.delmp[person][id]
+		if ok {
+			return url, 2
+		}
+	}
+
+	return "", 0
 }
 func ReceiveListURL(person string) (map[string]string, bool) {
 	m.mux.Lock()
@@ -205,4 +223,29 @@ func ReceiveListURL(person string) (map[string]string, bool) {
 	}
 
 	return lst, true
+}
+func DeleteURL(conn, person, short string) error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	link, ok := m.mp[person][short]
+	if !ok {
+		return fmt.Errorf("error: can't delete URL")
+	}
+	delete(m.mp[person], short)
+
+	if len(m.delmp[person]) == 0 {
+		m.delmp[person] = make(map[string]string)
+	}
+	m.delmp[person][short] = link
+
+	if conn != "" {
+		_, err := m.db.Exec("UPDATE links SET del = TRUE WHERE person = '$1' AND short = '$2'", person, short)
+		if err != nil {
+			return fmt.Errorf("db error: %w", err)
+		}
+		return nil
+	}
+
+	return nil
 }

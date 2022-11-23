@@ -72,6 +72,7 @@ func ShortenerInit(serverAddress, baseURL, fileStoragePath, dbConn string) {
 	e.GET("/:id", receiveURL)
 	e.GET("/api/user/urls", receiveListURL)
 	e.GET("/ping", ping)
+	e.DELETE("/api/user/urls", deleteListURL)
 	e.Logger.Fatal(e.Start(serverAddress))
 }
 
@@ -90,9 +91,10 @@ func createURL(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "error: the link is invalid")
 	}
 
-	url, ok := db.IDReadURL(link)
-	if !ok {
-		url, err = shortener(link, checkPerson(c, enc))
+	person := checkPerson(c, enc)
+	url, variant := db.IDReadURL(person, link)
+	if variant == 0 {
+		url, err = shortener(link, person)
 		if errors.Is(err, db.ErrorDuplicate) {
 			return c.String(http.StatusConflict, base+"/"+url)
 		}
@@ -128,9 +130,10 @@ func createJSONURL(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "error: the link is invalid")
 	}
 
-	url, ok := db.IDReadURL(link)
-	if !ok {
-		url, err = shortener(link, checkPerson(c, enc))
+	person := checkPerson(c, enc)
+	url, variant := db.IDReadURL(person, link)
+	if variant == 0 {
+		url, err = shortener(link, person)
 		if errors.Is(err, db.ErrorDuplicate) {
 			result := &res{
 				Result: base + "/" + url,
@@ -170,9 +173,10 @@ func createBatchJSONURL(c echo.Context) error {
 			return c.String(http.StatusBadRequest, "error: the link is invalid")
 		}
 
-		url, ok := db.IDReadURL(link.OriginalURL)
-		if !ok {
-			url, err = shortener(link.OriginalURL, checkPerson(c, enc))
+		person := checkPerson(c, enc)
+		url, variant := db.IDReadURL(person, link.OriginalURL)
+		if variant == 0 {
+			url, err = shortener(link.OriginalURL, person)
 			if err != nil {
 				return c.String(http.StatusBadRequest, "error: failed to create a shortened URL")
 			}
@@ -190,9 +194,11 @@ func createBatchJSONURL(c echo.Context) error {
 func receiveURL(c echo.Context) error {
 	id := c.Param("id")
 
-	url, ok := db.IDReadURL(id)
-	if !ok {
+	url, variant := db.IDReadURL(checkPerson(c, enc), id)
+	if variant == 0 {
 		return c.String(http.StatusNotFound, "error: there is no such link")
+	} else if variant == 2 {
+		return c.String(http.StatusGone, "error: link has been deleted")
 	}
 
 	return c.Redirect(http.StatusTemporaryRedirect, url)
@@ -214,6 +220,36 @@ func receiveListURL(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, persLinks)
+}
+
+func deleteListURL(c echo.Context) error {
+	person := checkPerson(c, enc)
+	list, ok := db.ReceiveListURL(person)
+	if !ok {
+		return c.String(http.StatusBadRequest, "error: person have no links")
+	}
+
+	body, err := io.ReadAll(c.Request().Body)
+	if err != nil {
+		return c.String(http.StatusBadRequest, "error: failed to get links to delete")
+	}
+
+	var links []string
+	err = json.Unmarshal(body, &links)
+	if err != nil {
+		return c.String(http.StatusBadRequest, "error: failed to unmarshal links")
+	}
+
+	for _, del := range links {
+		for cur := range list {
+			if cur == del {
+				go db.DeleteURL(conn, person, del)
+				break
+			}
+		}
+	}
+
+	return c.String(http.StatusAccepted, "URLs deleted")
 }
 
 func ping(c echo.Context) error {
